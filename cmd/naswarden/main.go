@@ -95,6 +95,12 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, hub *ws.Hub) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	server, err := truenas.GetServerInfo(ctx, client)
+	if err != nil {
+		slog.Error("failed to refresh server info", "err", err)
+		return
+	}
+
 	pools, err := truenas.ListPools(ctx, client)
 	if err != nil {
 		slog.Error("failed to refresh pools", "err", err)
@@ -122,6 +128,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, hub *ws.Hub) {
 
 	payload, err := json.Marshal(map[string]any{
 		"type":       "state",
+		"server":     server,
 		"pools":      pools,
 		"datasets":   datasets,
 		"containers": containers,
