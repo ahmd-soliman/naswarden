@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ahmd-soliman/naswarden/internal/truenas"
+	"github.com/ahmd-soliman/naswarden/internal/web"
 	"github.com/ahmd-soliman/naswarden/internal/ws"
 )
 
@@ -50,11 +51,18 @@ func main() {
 		}
 	}()
 
+	uiHandler, err := web.Handler()
+	if err != nil {
+		slog.Error("failed to load embedded UI", "err", err)
+		os.Exit(1)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeHTTP)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+	mux.Handle("/", uiHandler)
 
 	slog.Info("listening", "port", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
