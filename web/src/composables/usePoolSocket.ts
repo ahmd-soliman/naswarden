@@ -34,8 +34,21 @@ export interface Container {
   mem_limit: number
 }
 
+export interface ServerInfo {
+  hostname: string
+  version: string
+  uptime_seconds: number
+  cpu_percent: number
+  mem_used: number
+  mem_total: number
+  load_avg_1: number
+  load_avg_5: number
+  load_avg_15: number
+}
+
 interface StateMessage {
   type: 'state'
+  server: ServerInfo | null
   pools: Pool[]
   datasets: Dataset[]
   containers: Container[] | null
@@ -47,6 +60,7 @@ interface StateMessage {
 // new/reconnecting clients, so a dropped connection is recoverable
 // without losing state for long.
 export function usePoolSocket() {
+  const server = ref<ServerInfo | null>(null)
   const pools = ref<Pool[]>([])
   const datasets = ref<Dataset[]>([])
   const containers = ref<Container[]>([])
@@ -67,6 +81,7 @@ export function usePoolSocket() {
     socket.onmessage = (event) => {
       const msg = JSON.parse(event.data) as StateMessage
       if (msg.type === 'state') {
+        server.value = msg.server
         pools.value = msg.pools
         datasets.value = msg.datasets
         containers.value = msg.containers ?? []
@@ -87,5 +102,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { pools, datasets, containers, connected }
+  return { server, pools, datasets, containers, connected }
 }

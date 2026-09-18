@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import ServerCard from './components/ServerCard.vue'
 import PoolCard from './components/PoolCard.vue'
 import DatasetCard from './components/DatasetCard.vue'
 import ContainerCard from './components/ContainerCard.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
 
-const { pools, datasets, containers, connected } = usePoolSocket()
+const { server, pools, datasets, containers, connected } = usePoolSocket()
 
 // Highest utilization first -- the datasets closest to trouble should be
 // the first thing you see, not buried alphabetically.
@@ -34,6 +35,11 @@ const sortedContainers = computed(() =>
         {{ connected ? 'live' : 'reconnecting…' }}
       </span>
     </header>
+
+    <section v-if="server">
+      <h2>Server</h2>
+      <ServerCard :server="server" />
+    </section>
 
     <section>
       <h2>Pools</h2>
