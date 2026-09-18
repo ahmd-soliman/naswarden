@@ -11,6 +11,12 @@ const memPercent = computed(() => {
   return Math.round((props.container.mem_used / props.container.mem_limit) * 100)
 })
 
+const memColor = computed(() => {
+  if (memPercent.value >= 90) return 'red'
+  if (memPercent.value >= 70) return 'yellow'
+  return 'green'
+})
+
 function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let value = bytes
@@ -41,7 +47,10 @@ function formatBytes(bytes: number): string {
       </div>
       <div class="container-card__stat">
         <span>Memory</span>
-        <span>{{ formatBytes(container.mem_used) }} / {{ formatBytes(container.mem_limit) }} ({{ memPercent }}%)</span>
+        <span>{{ formatBytes(container.mem_used) }} / {{ formatBytes(container.mem_limit) }}</span>
+      </div>
+      <div class="bar">
+        <div class="bar__fill" :class="`badge--${memColor}`" :style="{ width: Math.min(memPercent, 100) + '%' }" />
       </div>
     </template>
     <div v-else class="container-card__status">{{ container.status }}</div>
@@ -106,11 +115,44 @@ function formatBytes(bytes: number): string {
   color: #9ca3af;
 }
 
+.badge--yellow {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.badge--red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
 .container-card__stat {
   display: flex;
   justify-content: space-between;
   font-size: 0.8rem;
   color: var(--text-dim);
+}
+
+.bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bar__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.bar__fill.badge--green {
+  background: #22c55e;
+}
+.bar__fill.badge--yellow {
+  background: #eab308;
+}
+.bar__fill.badge--red {
+  background: #ef4444;
 }
 
 .container-card__status {
