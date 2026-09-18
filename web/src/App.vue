@@ -2,14 +2,24 @@
 import { computed } from 'vue'
 import PoolCard from './components/PoolCard.vue'
 import DatasetCard from './components/DatasetCard.vue'
+import ContainerCard from './components/ContainerCard.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
 
-const { pools, datasets, connected } = usePoolSocket()
+const { pools, datasets, containers, connected } = usePoolSocket()
 
 // Highest utilization first -- the datasets closest to trouble should be
 // the first thing you see, not buried alphabetically.
 const sortedDatasets = computed(() =>
   [...datasets.value].sort((a, b) => b.used / b.quota - a.used / a.quota),
+)
+
+// Running containers first, then alphabetical within each group.
+const sortedContainers = computed(() =>
+  [...containers.value].sort((a, b) => {
+    if (a.state === 'running' && b.state !== 'running') return -1
+    if (a.state !== 'running' && b.state === 'running') return 1
+    return a.name.localeCompare(b.name)
+  }),
 )
 </script>
 
@@ -38,6 +48,13 @@ const sortedDatasets = computed(() =>
       <div class="grid grid--datasets">
         <DatasetCard v-for="dataset in sortedDatasets" :key="dataset.name" :dataset="dataset" />
         <p v-if="datasets.length === 0" class="empty">No datasets with a quota configured.</p>
+      </div>
+    </section>
+
+    <section v-if="containers.length > 0">
+      <h2>Containers</h2>
+      <div class="grid grid--datasets">
+        <ContainerCard v-for="container in sortedContainers" :key="container.name" :container="container" />
       </div>
     </section>
   </div>

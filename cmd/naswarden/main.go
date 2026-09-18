@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/ahmd-soliman/naswarden/internal/docker"
 	"github.com/ahmd-soliman/naswarden/internal/metrics"
 	"github.com/ahmd-soliman/naswarden/internal/truenas"
 	"github.com/ahmd-soliman/naswarden/internal/web"
@@ -40,6 +41,16 @@ func main() {
 	defer client.Close()
 	slog.Info("connected to TrueNAS", "host", host)
 
+	// Docker container stats are optional -- naswarden runs fine without
+	// them if DOCKER_PROXY_URL isn't set. Always points at a
+	// tecnativa/docker-socket-proxy instance (read-only, CONTAINERS=1),
+	// never a raw docker.sock mount into naswarden itself.
+	var dockerClient *docker.Client
+	if proxyURL := os.Getenv("DOCKER_PROXY_URL"); proxyURL != "" {
+		dockerClient = docker.NewClient(proxyURL)
+		slog.Info("docker container stats enabled", "proxy", proxyURL)
+	}
+
 	hub := ws.NewHub()
 
 	// Refresh loop: poll TrueNAS, push to every connected client. Decoupled
@@ -49,7 +60,7 @@ func main() {
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
 		for {
-			refresh(client, hub)
+			refresh(client, dockerClient, hub)
 			<-ticker.C
 		}
 	}()
@@ -80,7 +91,7 @@ func main() {
 // renders a consistent snapshot, not pools and datasets from two
 // different refresh moments), and separately fed into the Prometheus
 // gauges for /metrics.
-func refresh(client *truenas.Client, hub *ws.Hub) {
+func refresh(client *truenas.Client, dockerClient *docker.Client, hub *ws.Hub) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -97,10 +108,23 @@ func refresh(client *truenas.Client, hub *ws.Hub) {
 	}
 	metrics.UpdateDatasets(datasets)
 
+	// Docker is optional and refreshed best-effort -- a failure here
+	// (proxy briefly unreachable) shouldn't take down pool/dataset
+	// reporting, which is why this doesn't early-return like the two
+	// TrueNAS calls above.
+	var containers []docker.Container
+	if dockerClient != nil {
+		containers, err = dockerClient.ListContainers(ctx)
+		if err != nil {
+			slog.Error("failed to refresh containers", "err", err)
+		}
+	}
+
 	payload, err := json.Marshal(map[string]any{
-		"type":     "state",
-		"pools":    pools,
-		"datasets": datasets,
+		"type":       "state",
+		"pools":      pools,
+		"datasets":   datasets,
+		"containers": containers,
 	})
 	if err != nil {
 		slog.Error("failed to marshal state payload", "err", err)
