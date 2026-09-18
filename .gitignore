@@ -1,0 +1,6 @@
+/naswarden
+/naswarden-test
+*.log
+node_modules/
+web/dist/
+.env
