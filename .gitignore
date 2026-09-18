@@ -2,5 +2,9 @@
 /naswarden-test
 *.log
 node_modules/
-web/dist/
 .env
+
+# internal/web/dist (the built frontend go:embed serves) is intentionally
+# NOT ignored -- committing it is what lets `go build`/`go install` work
+# standalone for end users with no Node dependency. Contributors changing
+# the frontend just re-run `npm run build` in web/ and commit the diff.

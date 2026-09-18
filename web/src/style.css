@@ -1,0 +1,31 @@
+/* Dark-first, matching the aesthetic of similar self-hosted admin tools
+   (Dockge, Uptime Kuma) that this UI is modeled on. */
+:root {
+  --bg: #0f1115;
+  --card-bg: #181b21;
+  --border: #262a33;
+  --text: #e5e7eb;
+  --text-dim: #9ca3af;
+
+  font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1 {
+  color: var(--text);
+  margin: 0;
+}
