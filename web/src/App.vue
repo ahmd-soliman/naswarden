@@ -16,7 +16,10 @@ const sortedDatasets = computed(() =>
 <template>
   <div class="app">
     <header class="app__header">
-      <h1>naswarden</h1>
+      <div class="app__brand">
+        <img src="/favicon.svg" alt="" class="app__logo" />
+        <h1>naswarden</h1>
+      </div>
       <span class="conn" :class="{ 'conn--live': connected }">
         {{ connected ? 'live' : 'reconnecting…' }}
       </span>
@@ -54,9 +57,21 @@ const sortedDatasets = computed(() =>
   margin-bottom: 1.5rem;
 }
 
+.app__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.app__logo {
+  width: 28px;
+  height: 28px;
+}
+
 .app__header h1 {
   font-size: 1.5rem;
   font-family: ui-monospace, monospace;
+  margin: 0;
 }
 
 .conn {
