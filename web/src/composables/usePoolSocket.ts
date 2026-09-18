@@ -24,10 +24,21 @@ export interface Dataset {
   quota_source: 'quota' | 'refquota'
 }
 
+export interface Container {
+  name: string
+  image: string
+  state: string // "running", "exited", ...
+  status: string // human-readable, e.g. "Up 12 minutes (healthy)"
+  cpu_percent: number
+  mem_used: number
+  mem_limit: number
+}
+
 interface StateMessage {
   type: 'state'
   pools: Pool[]
   datasets: Dataset[]
+  containers: Container[] | null
 }
 
 // Connects to naswarden's /ws endpoint and keeps `pools`/`datasets`
@@ -38,6 +49,7 @@ interface StateMessage {
 export function usePoolSocket() {
   const pools = ref<Pool[]>([])
   const datasets = ref<Dataset[]>([])
+  const containers = ref<Container[]>([])
   const connected = ref(false)
 
   let socket: WebSocket | null = null
@@ -57,6 +69,7 @@ export function usePoolSocket() {
       if (msg.type === 'state') {
         pools.value = msg.pools
         datasets.value = msg.datasets
+        containers.value = msg.containers ?? []
       }
     }
 
@@ -74,5 +87,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { pools, datasets, connected }
+  return { pools, datasets, containers, connected }
 }
