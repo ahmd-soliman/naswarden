@@ -8,6 +8,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/ahmd-soliman/naswarden/internal/metrics"
 	"github.com/ahmd-soliman/naswarden/internal/truenas"
 	"github.com/ahmd-soliman/naswarden/internal/web"
 	"github.com/ahmd-soliman/naswarden/internal/ws"
@@ -46,7 +49,7 @@ func main() {
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
 		for {
-			refreshPools(client, hub)
+			refresh(client, hub)
 			<-ticker.C
 		}
 	}()
@@ -63,6 +66,7 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.Handle("/", uiHandler)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	slog.Info("listening", "port", port)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
@@ -71,7 +75,12 @@ func main() {
 	}
 }
 
-func refreshPools(client *truenas.Client, hub *ws.Hub) {
+// refresh fetches everything naswarden tracks in one pass: pushed to
+// WebSocket clients as a single combined message (so the UI always
+// renders a consistent snapshot, not pools and datasets from two
+// different refresh moments), and separately fed into the Prometheus
+// gauges for /metrics.
+func refresh(client *truenas.Client, hub *ws.Hub) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -81,12 +90,20 @@ func refreshPools(client *truenas.Client, hub *ws.Hub) {
 		return
 	}
 
+	datasets, err := truenas.ListDatasets(ctx, client)
+	if err != nil {
+		slog.Error("failed to refresh datasets", "err", err)
+		return
+	}
+	metrics.UpdateDatasets(datasets)
+
 	payload, err := json.Marshal(map[string]any{
-		"type":  "pools",
-		"pools": pools,
+		"type":     "state",
+		"pools":    pools,
+		"datasets": datasets,
 	})
 	if err != nil {
-		slog.Error("failed to marshal pools payload", "err", err)
+		slog.Error("failed to marshal state payload", "err", err)
 		return
 	}
 	hub.Broadcast(payload)
