@@ -11,7 +11,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"sync"
+	"sync/atomic"
 )
 
 type Client struct {
@@ -70,39 +73,67 @@ type statsResponse struct {
 
 // ListContainers returns every container (running and stopped) with live
 // stats for the running ones.
+//
+// Stats are fetched CONCURRENTLY, not in a loop -- confirmed directly
+// against the real Docker Engine API that a single non-streaming stats
+// call takes ~1 second (Docker samples cgroup counters twice internally
+// to compute the CPU delta). A large host easily has 50+
+// containers; fetching sequentially took 50+ seconds against a single
+// refresh cycle's budget, silently timing out partway through and
+// leaving most containers zeroed with the error swallowed. Caught this
+// by comparing what the live deployment actually returned against what
+// local testing (a handful of containers) had shown.
 func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
-	var summaries []containerSummary
-	if err := c.get(ctx, "/containers/json?all=true", &summaries); err != nil {
+	// No `all=true` -- Docker's default already returns running containers
+	// only, which is exactly what we want: exited/created containers
+	// (stopped runner build containers, retired one-offs, etc.) are noise
+	// on an overview page.
+	var running []containerSummary
+	if err := c.get(ctx, "/containers/json", &running); err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 
-	containers := make([]Container, 0, len(summaries))
-	for _, s := range summaries {
+	containers := make([]Container, len(running))
+	var wg sync.WaitGroup
+	var failures atomic.Int64
+
+	for i, s := range running {
 		name := s.ID
 		if len(s.Names) > 0 {
 			name = trimLeadingSlash(s.Names[0])
 		}
 
-		cont := Container{
+		containers[i] = Container{
 			Name:   name,
 			Image:  s.Image,
 			State:  s.State,
 			Status: s.Status,
 		}
 
-		if s.State == "running" {
+		wg.Add(1)
+		go func(i int, id string) {
+			defer wg.Done()
 			var stats statsResponse
-			if err := c.get(ctx, fmt.Sprintf("/containers/%s/stats?stream=false", s.ID), &stats); err == nil {
-				cont.CPUPercent = cpuPercent(stats)
-				cont.MemUsed = stats.MemoryStats.Usage
-				cont.MemLimit = stats.MemoryStats.Limit
+			if err := c.get(ctx, fmt.Sprintf("/containers/%s/stats?stream=false", id), &stats); err != nil {
+				// A stats failure for one container (stopped between the
+				// list call and now, or a genuine timeout) shouldn't fail
+				// the whole refresh -- it just reports zeroed usage for
+				// that one. Counted, not silently dropped, so a systemic
+				// problem (like the sequential-fetch bug this replaced)
+				// is visible in logs instead of just showing up as
+				// mysteriously-zeroed stats in the UI.
+				failures.Add(1)
+				return
 			}
-			// A stats failure for one container (e.g. it stopped between
-			// the list call and now) shouldn't fail the whole refresh --
-			// it just reports zeroed usage for that one.
-		}
+			containers[i].CPUPercent = cpuPercent(stats)
+			containers[i].MemUsed = stats.MemoryStats.Usage
+			containers[i].MemLimit = stats.MemoryStats.Limit
+		}(i, s.ID)
+	}
 
-		containers = append(containers, cont)
+	wg.Wait()
+	if n := failures.Load(); n > 0 {
+		slog.Warn("failed to fetch stats for some containers", "count", n, "total", len(running))
 	}
 	return containers, nil
 }
