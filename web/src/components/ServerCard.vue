@@ -55,9 +55,9 @@ function formatUptime(seconds: number): string {
         <span class="server-card__value">{{ server.cpu_percent.toFixed(0) }}%</span>
       </div>
       <div class="server-card__stat">
-        <span class="server-card__label">Load (1/5/15m)</span>
+        <span class="server-card__label">System pressure (1/5/15m)</span>
         <span class="server-card__value">
-          {{ server.load_avg_1.toFixed(2) }} / {{ server.load_avg_5.toFixed(2) }} / {{ server.load_avg_15.toFixed(2) }}
+          {{ server.load_percent_1.toFixed(0) }}% / {{ server.load_percent_5.toFixed(0) }}% / {{ server.load_percent_15.toFixed(0) }}%
         </span>
       </div>
     </div>

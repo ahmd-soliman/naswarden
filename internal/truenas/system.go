@@ -19,9 +19,16 @@ type ServerInfo struct {
 	CPUPercent float64 `json:"cpu_percent"`
 	MemUsed    int64   `json:"mem_used"`
 	MemTotal   int64   `json:"mem_total"`
-	LoadAvg1   float64 `json:"load_avg_1"`
-	LoadAvg5   float64 `json:"load_avg_5"`
-	LoadAvg15  float64 `json:"load_avg_15"`
+	// Load average normalized to % of total CPU capacity (load / cores *
+	// 100), not the raw Unix load average -- a raw number like "3.42" is
+	// meaningless without already knowing this box's core count, and is
+	// largely redundant with CPUPercent above anyway. As a percentage it's
+	// self-explanatory and can still exceed 100% (genuine queueing/
+	// overload), which is real, useful information worth keeping visible
+	// rather than clamping away.
+	LoadPercent1  float64 `json:"load_percent_1"`
+	LoadPercent5  float64 `json:"load_percent_5"`
+	LoadPercent15 float64 `json:"load_percent_15"`
 }
 
 type systemInfoResponse struct {
@@ -29,6 +36,7 @@ type systemInfoResponse struct {
 	Version    string  `json:"version"`
 	Physmem    int64   `json:"physmem"`
 	UptimeSecs float64 `json:"uptime_seconds"`
+	Cores      int64   `json:"cores"`
 }
 
 // reportingGraph mirrors reporting.netdata_get_data's response shape:
@@ -90,14 +98,17 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 				info.MemUsed = info.MemTotal - int64(v)
 			}
 		case "load":
+			if sysInfo.Cores <= 0 {
+				continue // avoid a divide-by-zero if this ever comes back 0
+			}
 			if v, ok := column(g.Legend, last, "shortterm"); ok {
-				info.LoadAvg1 = v
+				info.LoadPercent1 = v / float64(sysInfo.Cores) * 100
 			}
 			if v, ok := column(g.Legend, last, "midterm"); ok {
-				info.LoadAvg5 = v
+				info.LoadPercent5 = v / float64(sysInfo.Cores) * 100
 			}
 			if v, ok := column(g.Legend, last, "longterm"); ok {
-				info.LoadAvg15 = v
+				info.LoadPercent15 = v / float64(sysInfo.Cores) * 100
 			}
 		}
 	}
