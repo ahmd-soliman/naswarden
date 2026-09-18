@@ -41,9 +41,9 @@ export interface ServerInfo {
   cpu_percent: number
   mem_used: number
   mem_total: number
-  load_avg_1: number
-  load_avg_5: number
-  load_avg_15: number
+  load_percent_1: number
+  load_percent_5: number
+  load_percent_15: number
 }
 
 interface StateMessage {
