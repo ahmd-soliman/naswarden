@@ -17,10 +17,11 @@ type property struct {
 }
 
 type rawDataset struct {
-	Name     string   `json:"name"`
-	Used     property `json:"used"`
-	Quota    property `json:"quota"`
-	RefQuota property `json:"refquota"`
+	Name          string   `json:"name"`
+	Used          property `json:"used"`
+	UsedByDataset property `json:"usedbydataset"`
+	Quota         property `json:"quota"`
+	RefQuota      property `json:"refquota"`
 }
 
 // Dataset is a dataset that has an actual quota configured -- datasets
@@ -63,9 +64,26 @@ func ListDatasets(ctx context.Context, c *Client) ([]Dataset, error) {
 			continue // no quota configured, nothing to report
 		}
 
+		// `used` includes snapshot space; `refquota` deliberately does not
+		// (that's the whole point of choosing refquota over quota -- see
+		// P1/TimeMachine/mac2, where heavy snapshot churn from sparsebundle
+		// rewrites pushes `used` well past `refquota` while the dataset's
+		// actual live data, `usedbydataset` (ZFS's `referenced`, which
+		// pool.dataset.query doesn't expose under that name), stays
+		// comfortably under it -- confirmed directly against a live
+		// TrueNAS box. Comparing `used` against a refquota would report a
+		// dataset as "over quota" when it has never actually violated
+		// anything, since refquota was never scoped to cover that space.
 		var used int64
-		if rd.Used.Parsed != nil {
-			used = *rd.Used.Parsed
+		switch source {
+		case "refquota":
+			if rd.UsedByDataset.Parsed != nil {
+				used = *rd.UsedByDataset.Parsed
+			}
+		default: // "quota" DOES count snapshot space, so `used` is correct
+			if rd.Used.Parsed != nil {
+				used = *rd.Used.Parsed
+			}
 		}
 
 		datasets = append(datasets, Dataset{
