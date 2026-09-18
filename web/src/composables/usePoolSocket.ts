@@ -17,18 +17,27 @@ export interface Pool {
   scan: Scan | null
 }
 
-interface PoolsMessage {
-  type: 'pools'
-  pools: Pool[]
+export interface Dataset {
+  name: string
+  used: number
+  quota: number
+  quota_source: 'quota' | 'refquota'
 }
 
-// Connects to naswarden's /ws endpoint and keeps `pools` reactive and
-// up to date. Reconnects with backoff on disconnect -- the backend pushes
-// on its own schedule and replays the last known state to new/reconnecting
-// clients, so a dropped connection is recoverable without losing state for
-// long.
+interface StateMessage {
+  type: 'state'
+  pools: Pool[]
+  datasets: Dataset[]
+}
+
+// Connects to naswarden's /ws endpoint and keeps `pools`/`datasets`
+// reactive and up to date. Reconnects with backoff on disconnect -- the
+// backend pushes on its own schedule and replays the last known state to
+// new/reconnecting clients, so a dropped connection is recoverable
+// without losing state for long.
 export function usePoolSocket() {
   const pools = ref<Pool[]>([])
+  const datasets = ref<Dataset[]>([])
   const connected = ref(false)
 
   let socket: WebSocket | null = null
@@ -44,9 +53,10 @@ export function usePoolSocket() {
     }
 
     socket.onmessage = (event) => {
-      const msg = JSON.parse(event.data) as PoolsMessage
-      if (msg.type === 'pools') {
+      const msg = JSON.parse(event.data) as StateMessage
+      if (msg.type === 'state') {
         pools.value = msg.pools
+        datasets.value = msg.datasets
       }
     }
 
@@ -64,5 +74,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { pools, connected }
+  return { pools, datasets, connected }
 }
