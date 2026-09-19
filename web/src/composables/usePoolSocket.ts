@@ -12,6 +12,8 @@ export interface VdevChild {
   read_errors: number
   write_errors: number
   checksum_errors: number
+  temperature_c?: number | null
+  standby?: boolean
 }
 
 export interface Vdev {
@@ -134,6 +136,38 @@ export interface VM {
   passthrough?: string[]
 }
 
+export interface Alert {
+  id: string
+  uuid?: string
+  level: string // "CRITICAL" | "ERROR" | "WARNING" | "INFO"
+  source: string
+  klass: string
+  formatted: string
+  text?: string
+  datetime: number // Unix seconds
+  dismissed: boolean
+}
+
+export interface ReplicationTask {
+  id: number
+  name: string
+  direction: string
+  transport: string
+  source_datasets: string[]
+  target_dataset: string
+  target_pool: string
+  source_pools: string[]
+  state: string
+  job_state?: string
+  progress_percent?: number
+  progress_description?: string
+  last_snapshot?: string
+  time_started?: number
+  time_finished?: number
+  duration_seconds?: number
+  enabled: boolean
+}
+
 interface StateMessage {
   type: 'state'
   updated_at?: number // unix seconds the backend took this snapshot
@@ -143,6 +177,8 @@ interface StateMessage {
   datasets: Dataset[]
   containers: Container[] | null
   vms: VM[] | null
+  alerts?: Alert[] | null
+  replications?: ReplicationTask[] | null
 }
 
 // Connects to naswarden's /ws endpoint and keeps `pools`/`datasets`
@@ -156,6 +192,8 @@ export function usePoolSocket() {
   const datasets = ref<Dataset[]>([])
   const containers = ref<Container[]>([])
   const vms = ref<VM[]>([])
+  const alerts = ref<Alert[]>([])
+  const replications = ref<ReplicationTask[]>([])
   const connected = ref(false)
   const updatedAt = ref<number | null>(null)
   const staleSources = ref<string[]>([])
@@ -180,6 +218,8 @@ export function usePoolSocket() {
         datasets.value = msg.datasets
         containers.value = msg.containers ?? []
         vms.value = msg.vms ?? []
+        alerts.value = msg.alerts ?? []
+        replications.value = msg.replications ?? []
         updatedAt.value = msg.updated_at ?? null
         staleSources.value = msg.stale_sources ?? []
       }
@@ -199,5 +239,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { server, pools, datasets, containers, vms, connected, updatedAt, staleSources }
+  return { server, pools, datasets, containers, vms, alerts, replications, connected, updatedAt, staleSources }
 }
