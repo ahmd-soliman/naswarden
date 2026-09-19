@@ -304,7 +304,7 @@ function stackActive(name: string) {
     <header class="app__topbar">
       <div class="app__brand">
         <img src="/favicon.svg" alt="" class="app__logo" />
-        <h1>naswarden</h1>
+        <h1>Naswarden</h1>
       </div>
       <SearchBox v-model="query" class="app__search" />
       <div class="conn-group">
