@@ -60,7 +60,7 @@ func NewClient(rawURL, certData, keyData string, insecureTLS bool) (*Client, err
 
 	tlsConfig := &tls.Config{
 		Certificates:       []tls.Certificate{tlsCert},
-		InsecureSkipVerify: insecureTLS,
+		InsecureSkipVerify: insecureTLS, //nolint:gosec // opt-out via INCUS_INSECURE_TLS=false; LAN self-signed certs
 	}
 
 	transport := &http.Transport{
@@ -94,7 +94,8 @@ func parsePEMOrFile(input string) ([]byte, error) {
 		return decoded, nil
 	}
 
-	if data, err := os.ReadFile(trimmed); err == nil {
+	// The path is operator-supplied env config, not user input.
+	if data, err := os.ReadFile(trimmed); err == nil { //nolint:gosec // see above
 		return data, nil
 	}
 
@@ -172,12 +173,12 @@ type rawOSInfo struct {
 // with full state, resource counters, and network addresses in a single round-trip.
 func (c *Client) ListInstances(ctx context.Context) ([]Instance, error) {
 	url := fmt.Sprintf("%s/1.0/instances?recursion=2", c.baseURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil) //nolint:gosec // URL is operator-supplied INCUS_URL
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.http.Do(req)
+	resp, err := c.http.Do(req) //nolint:gosec // see above
 	if err != nil {
 		return nil, fmt.Errorf("incus request failed: %w", err)
 	}
