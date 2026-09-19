@@ -17,22 +17,45 @@ export interface Stack {
 
 export const isStopped = (c: Container) => c.state === 'exited' || c.state === 'created' || c.state === 'dead'
 
-// A container that exited with code 0 stopped cleanly -- a one-shot helper
-// (nextcloud-aio-watchtower) or a stack someone stopped on purpose. That is
-// not a fault, so it must not turn its stack yellow.
-export const isCleanStop = (c: Container) => c.state === 'exited' && c.exit_code === 0
+// A container that stopped cleanly or was intentionally stopped:
+// - Running containers are live, not stopped.
+// - Labeled optional/ignore (naswarden.optional or naswarden.ignore).
+// - Created or paused containers (not active faults).
+// - Clean / intentional exits:
+//   - exit code 0 (clean completion or graceful stop).
+//   - exit code 143 (SIGTERM, standard `docker stop`).
+//   - exit code 137 (SIGKILL, standard stop timeout) UNLESS kernel OOM killed.
+// A container that crashed with error codes (e.g. 1..127) or was OOM-killed is NOT clean.
+export const isCleanStop = (c: Container): boolean => {
+  if (c.state === 'running') return false
+  if (c.optional) return true
+  if (c.oom_killed) return false
+  if (c.state === 'created' || c.state === 'paused') return true
+  if (c.state === 'exited') {
+    return c.exit_code === 0 || c.exit_code === 143 || c.exit_code === 137
+  }
+  return false
+}
 
 export function memberTone(c: Container): MemberTone {
   if (c.state === 'running') return 'ok'
+  if (c.oom_killed) return 'crit'
+  if (c.optional) return 'gray'
   if (isCleanStop(c) || c.state === 'created' || c.state === 'paused') return 'gray'
-  return 'crit' // restarting, dead, or exited with a non-zero code
+  return 'crit' // restarting, dead, or exited with an error code
 }
 
 export function memberBadge(c: Container): { cls: string; label: string } {
   const tone = memberTone(c)
   const cls = tone === 'ok' ? 'badge--green' : tone === 'crit' ? 'badge--red' : 'badge--gray'
-  const label = c.state === 'exited' && c.exit_code !== 0 ? `exited (${c.exit_code})` : c.state
-  return { cls, label }
+  if (c.oom_killed) return { cls: 'badge--red', label: 'oom killed' }
+  if (c.optional && isStopped(c)) return { cls: 'badge--gray', label: 'optional' }
+  if (c.state === 'exited') {
+    if (c.exit_code === 0) return { cls, label: 'stopped' }
+    if (c.exit_code === 143 || c.exit_code === 137) return { cls, label: `stopped (${c.exit_code})` }
+    return { cls, label: `exited (${c.exit_code})` }
+  }
+  return { cls, label: c.state }
 }
 
 const HEALTH_RANK: Record<StackHealth, number> = { red: 0, yellow: 1, green: 2, gray: 3 }
