@@ -65,9 +65,9 @@ func NewClient(rawURL, certData, keyData string, insecureTLS bool) (*Client, err
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig:     tlsConfig,
-		MaxIdleConns:        10,
-		IdleConnTimeout:     30 * time.Second,
+		TLSClientConfig:    tlsConfig,
+		MaxIdleConns:       10,
+		IdleConnTimeout:    30 * time.Second,
 		DisableCompression: true,
 	}
 
@@ -121,16 +121,16 @@ type rawInstance struct {
 }
 
 type rawState struct {
-	Status     string                 `json:"status"`
-	StatusCode int                    `json:"status_code"`
-	StartedAt  string                 `json:"started_at"`
-	CPU        rawCPU                 `json:"cpu"`
-	Memory     rawMemory              `json:"memory"`
-	Disk       map[string]rawDisk     `json:"disk"`
-	Network    map[string]rawNetwork  `json:"network"`
-	OSInfo     rawOSInfo              `json:"os_info"`
-	Pid        int                    `json:"pid"`
-	Processes  int                    `json:"processes"`
+	Status     string                `json:"status"`
+	StatusCode int                   `json:"status_code"`
+	StartedAt  string                `json:"started_at"`
+	CPU        rawCPU                `json:"cpu"`
+	Memory     rawMemory             `json:"memory"`
+	Disk       map[string]rawDisk    `json:"disk"`
+	Network    map[string]rawNetwork `json:"network"`
+	OSInfo     rawOSInfo             `json:"os_info"`
+	Pid        int                   `json:"pid"`
+	Processes  int                   `json:"processes"`
 }
 
 type rawCPU struct {
