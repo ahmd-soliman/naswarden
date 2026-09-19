@@ -105,7 +105,15 @@ func main() {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	slog.Info("listening", "port", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	// No Read/WriteTimeout: /ws is a long-lived push connection. Header and
+	// idle timeouts still shut out slow-loris clients.
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		slog.Error("server exited", "err", err)
 		os.Exit(1)
 	}
