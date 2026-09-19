@@ -9,6 +9,7 @@ import StackCard from './components/StackCard.vue'
 import AppIcon from './components/AppIcon.vue'
 import SearchBox from './components/SearchBox.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
+import { useVersion, versionDetail, versionLabel } from './composables/useVersion'
 import ServerDetails from './components/ServerDetails.vue'
 import PoolDetails from './components/PoolDetails.vue'
 import DatasetDetails from './components/DatasetDetails.vue'
@@ -32,6 +33,7 @@ import { useViewMode } from './composables/useViewMode'
 import { useWide } from './composables/useWide'
 import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
+const build = useVersion()
 const { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources, serverError } = usePoolSocket()
 
 // Data freshness. The backend refreshes every 60s; if it stops getting data
@@ -697,6 +699,10 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
       </main>
     </div>
 
+    <footer v-if="build" class="app__footer">
+      <span :title="versionDetail(build)">NasWarden {{ versionLabel(build.version) }}</span>
+    </footer>
+
     <DetailDrawer
       :open="selected !== null"
       :docked="wide"
@@ -872,6 +878,15 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
   content: '●';
   color: var(--warn);
   margin-right: 0.4rem;
+}
+
+.app__footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-align: center;
 }
 
 .app__layout {
