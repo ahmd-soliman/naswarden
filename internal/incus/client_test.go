@@ -151,7 +151,7 @@ func TestListInstances(t *testing.T) {
 					"eth0": {
 						"type":   "nic",
 						"parent": "br0",
-						"hwaddr": "02:00:16:bc:19:4c",
+						"hwaddr": "02:00:00:00:00:01",
 					},
 				},
 				State: &rawState{
@@ -165,7 +165,7 @@ func TestListInstances(t *testing.T) {
 					},
 					Network: map[string]rawNetwork{
 						"eth0": {
-							Hwaddr: "02:00:16:bc:19:4c",
+							Hwaddr: "02:00:00:00:00:01",
 							Addresses: []rawAddress{
 								{Family: "inet", Address: "192.168.1.140", Scope: "global"},
 							},
@@ -244,8 +244,8 @@ func TestListInstances(t *testing.T) {
 	if vm.Bridge != "br0" {
 		t.Errorf("expected Bridge 'br0', got %q", vm.Bridge)
 	}
-	if vm.MAC != "02:00:16:bc:19:4c" {
-		t.Errorf("expected MAC '02:00:16:bc:19:4c', got %q", vm.MAC)
+	if vm.MAC != "02:00:00:00:00:01" {
+		t.Errorf("expected MAC '02:00:00:00:00:01', got %q", vm.MAC)
 	}
 	if len(vm.IPv4) != 1 || vm.IPv4[0] != "192.168.1.140" {
 		t.Errorf("expected IPv4 ['192.168.1.140'], got %v", vm.IPv4)
