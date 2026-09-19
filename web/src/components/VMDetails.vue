@@ -160,32 +160,29 @@ const filteredConfig = computed(() => {
 }
 
 .vm-type-pill {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.03em;
-  padding: 0.12rem 0.48rem;
-  border-radius: 4px;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
   text-transform: uppercase;
-  border: 1px solid var(--border);
+  border: 0;
   white-space: nowrap;
 }
 
 .vm-type-pill--truenas-kvm {
   background: rgba(168, 85, 247, 0.12);
   color: #c084fc;
-  border-color: rgba(168, 85, 247, 0.3);
 }
 
 .vm-type-pill--incus-kvm {
   background: rgba(6, 182, 212, 0.12);
   color: #22d3ee;
-  border-color: rgba(6, 182, 212, 0.3);
 }
 
 .vm-type-pill--incus-lxc {
   background: rgba(107, 114, 128, 0.12);
   color: #cbd5e1;
-  border-color: rgba(107, 114, 128, 0.28);
 }
 
 .drawer__dim-note {
