@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import AppIcon from './AppIcon.vue'
 import type { VM } from '../composables/usePoolSocket'
 
 const props = defineProps<{ vm: VM; active?: boolean }>()
@@ -7,6 +8,56 @@ defineEmits<{ select: [] }>()
 
 const isRunning = computed(() => props.vm.status.toLowerCase() === 'running')
 const isTrueNAS = computed(() => props.vm.manager === 'truenas')
+
+const candidates = computed(() => vmIconCandidates(props.vm))
+
+function vmIconCandidates(vm: VM): string[] {
+  const list: string[] = []
+  const nameLower = vm.name.toLowerCase()
+  const osLower = (vm.os || '').toLowerCase()
+
+  // 1. Name-based application / service slugs
+  if (nameLower.startsWith('k8s') || nameLower.includes('kubernetes')) {
+    list.push('kubernetes', 'k8s')
+  } else if (nameLower.includes('openstack')) {
+    list.push('openstack')
+  } else if (nameLower.includes('gitlab')) {
+    list.push('gitlab', 'gitlab-runner')
+  } else if (nameLower.includes('db') || nameLower.includes('postgres')) {
+    list.push('postgresql', 'postgres')
+  } else if (nameLower.includes('claude')) {
+    list.push('claude', 'anthropic')
+  }
+
+  // 2. OS-based slugs
+  if (osLower.includes('win')) {
+    list.push('windows-11', 'windows-10', 'windows')
+  } else if (osLower.includes('ubuntu')) {
+    list.push('ubuntu')
+  } else if (osLower.includes('debian')) {
+    list.push('debian')
+  } else if (osLower.includes('fedora')) {
+    list.push('fedora')
+  } else if (osLower.includes('arch')) {
+    list.push('arch-linux', 'arch')
+  } else if (osLower.includes('alpine')) {
+    list.push('alpine-linux', 'alpine')
+  }
+
+  // 3. Fallback to VM name
+  list.push(nameLower)
+
+  // 4. Platform fallbacks
+  if (vm.manager === 'truenas') {
+    list.push('truenas', 'qemu')
+  } else if (vm.is_vm) {
+    list.push('incus', 'qemu', 'linux')
+  } else {
+    list.push('incus', 'lxc', 'linux')
+  }
+
+  return [...new Set(list.filter(Boolean))]
+}
 
 const statusBadge = computed(() => {
   const s = props.vm.status.toLowerCase()
@@ -89,7 +140,10 @@ function formatBytes(bytes: number): string {
     @keydown.space.prevent="$emit('select')"
   >
     <div class="vm-card__header">
-      <span class="vm-card__name" :title="vm.name">{{ vm.name }}</span>
+      <span class="vm-card__title">
+        <AppIcon :candidates="candidates" :size="24" />
+        <span class="vm-card__name" :title="vm.name">{{ vm.name }}</span>
+      </span>
       <div class="vm-card__badges">
         <span class="vm-type-pill" :class="typeBadge.cls">
           {{ typeBadge.label }}
@@ -98,6 +152,10 @@ function formatBytes(bytes: number): string {
           {{ statusBadge.label }}
         </span>
       </div>
+    </div>
+
+    <div class="vm-card__strip" aria-hidden="true">
+      <i :class="isRunning ? 'seg--ok' : 'seg--gray'" />
     </div>
 
     <div class="vm-card__meta">
@@ -177,10 +235,11 @@ function formatBytes(bytes: number): string {
   --accent: var(--vm);
   border-top: 3px solid var(--accent);
   border-radius: 10px;
-  padding: 1.15rem 1.35rem;
+  padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .vm-card--stopped .vm-card__name {
@@ -193,6 +252,14 @@ function formatBytes(bytes: number): string {
   align-items: center;
   justify-content: space-between;
   gap: 0.4rem 0.75rem;
+}
+
+.vm-card__title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .vm-card__name {
@@ -237,6 +304,26 @@ function formatBytes(bytes: number): string {
   background: rgba(107, 114, 128, 0.12);
   color: #cbd5e1;
   border-color: rgba(107, 114, 128, 0.28);
+}
+
+.vm-card__strip {
+  display: flex;
+  gap: 3px;
+}
+
+.vm-card__strip i {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.seg--ok {
+  background: var(--ok) !important;
+}
+
+.seg--gray {
+  background: var(--gray) !important;
 }
 
 .vm-card__meta {
@@ -323,7 +410,7 @@ function formatBytes(bytes: number): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
 }
 
@@ -347,7 +434,7 @@ function formatBytes(bytes: number): string {
 }
 
 .bar {
-  height: 7px;
+  height: 6px;
   background: var(--border);
   border-radius: 999px;
   overflow: hidden;
