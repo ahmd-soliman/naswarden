@@ -94,6 +94,10 @@ export interface ServerInfo {
   load_percent_15: number
   arc_bytes: number
   interfaces: Interface[]
+  cpu_model: string
+  cores: number
+  physical_cores: number
+  cpu_temp_c: number
 }
 
 interface StateMessage {
