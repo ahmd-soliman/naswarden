@@ -47,7 +47,8 @@ h1 {
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.15s ease;
 }
-.card--clickable:hover {
+.card--clickable:hover,
+.card--clickable.card--open {
   border-color: rgba(255, 255, 255, 0.25);
   transform: translateY(-1px);
 }
