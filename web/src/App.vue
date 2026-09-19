@@ -107,26 +107,34 @@ const drawerTitle = computed(() => {
     </header>
 
     <div class="app__layout">
-      <nav class="rail">
-        <button class="rail__item" :class="{ active: activeSection === 'all' }" @click="selectSection('all')">
+      <nav class="rail" aria-label="Sections">
+        <button
+          class="rail__item"
+          :class="{ active: activeSection === 'all' }"
+          :aria-current="activeSection === 'all' ? 'true' : undefined"
+          @click="selectSection('all')"
+        >
           All
         </button>
         <button
           v-if="server"
           class="rail__item rail__item--server"
           :class="railClass('server')"
+          :aria-current="activeSection === 'server' ? 'true' : undefined"
           @click="selectSection('server')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg>
           Server
         </button>
-        <button class="rail__item rail__item--pool" :class="railClass('pools')" @click="selectSection('pools')">
+        <button class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="activeSection === 'pools' ? 'true' : undefined"
+          @click="selectSection('pools')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
           Pools
         </button>
         <button
           class="rail__item rail__item--dataset"
           :class="railClass('datasets')"
+          :aria-current="activeSection === 'datasets' ? 'true' : undefined"
           @click="selectSection('datasets')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
@@ -136,6 +144,7 @@ const drawerTitle = computed(() => {
           v-if="hasContainers"
           class="rail__item rail__item--container"
           :class="railClass('containers')"
+          :aria-current="activeSection === 'containers' ? 'true' : undefined"
           @click="selectSection('containers')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
@@ -249,13 +258,13 @@ const drawerTitle = computed(() => {
 
 .conn--live::before {
   content: '●';
-  color: #22c55e;
+  color: var(--ok);
   margin-right: 0.4rem;
 }
 
 .conn:not(.conn--live)::before {
   content: '●';
-  color: #eab308;
+  color: var(--warn);
   margin-right: 0.4rem;
 }
 
@@ -358,6 +367,7 @@ section h2 {
     flex-direction: column;
   }
   .rail {
+    flex: none;
     flex-direction: row;
     position: static;
     width: 100%;
@@ -366,6 +376,7 @@ section h2 {
   }
   .rail__item {
     flex: 0 0 auto;
+    width: auto;
     white-space: nowrap;
   }
 }

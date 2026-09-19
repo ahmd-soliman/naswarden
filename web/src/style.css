@@ -7,14 +7,30 @@
   --text: #e5e7eb;
   --text-dim: #9ca3af;
 
-  /* Per-section accent colors -- used as a top-edge border on cards and
-     the nav rail's active/scroll-highlighted icon, so each section type
-     (server/pools/datasets/containers) reads at a glance without
-     touching the red/yellow/green status colors used for health. */
-  --server: #14b8a6;
-  --pool: #3b82f6;
-  --dataset: #a78bfa;
-  --container: #fb923c;
+  /* Per-type accent colors -- top-edge border on cards and the rail icon.
+     Chosen with the dataviz palette validator (dark mode, on --card-bg):
+     violet > magenta > blue > orange passes every gate (worst adjacent
+     CVD dE 15.9, normal-vision 19.7). Server is a single card, not a
+     category to tell apart, so it deliberately has no accent. Kept
+     separate from the status colors below. */
+  --server: var(--text);
+  --pool: #9085e9;
+  --dataset: #d55181;
+  --stack: #3987e5;
+  --container: #d95926;
+
+  /* Status: *-fill for bars/segments, *-t for text (lightened until it
+     clears 4.5:1 on its own 15% tint, including on the drawer's lighter
+     list rows). Status also always carries an icon + label, never color
+     alone -- see the .badge::before rules below. */
+  --ok: #0ca30c;
+  --ok-t: #12b912;
+  --warn: #fab219;
+  --warn-t: #fab219;
+  --crit: #dc4a4a;
+  --crit-t: #e28282;
+  --gray: #6b7280;
+  --gray-t: #9ca3af;
 
   font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
@@ -53,7 +69,7 @@ h1 {
   transform: translateY(-1px);
 }
 .card--clickable:focus-visible {
-  outline: 2px solid #22c55e;
+  outline: 2px solid var(--ok-t);
   outline-offset: 2px;
 }
 
@@ -166,8 +182,8 @@ h1 {
   font-size: 0.65rem;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
+  background: color-mix(in srgb, var(--warn-t) 15%, transparent);
+  color: var(--warn-t);
   font-family: system-ui, sans-serif;
   text-transform: uppercase;
 }
@@ -180,6 +196,59 @@ h1 {
   .drawer,
   .drawer-backdrop,
   .card--clickable {
+    transition: none;
+  }
+}
+
+/* Status badges + bar fills, one definition for every card. */
+.badge--green {
+  background: color-mix(in srgb, var(--ok-t) 15%, transparent);
+  color: var(--ok-t);
+}
+.badge--yellow {
+  background: color-mix(in srgb, var(--warn-t) 15%, transparent);
+  color: var(--warn-t);
+}
+.badge--red {
+  background: color-mix(in srgb, var(--crit-t) 15%, transparent);
+  color: var(--crit-t);
+}
+.badge--gray {
+  background: color-mix(in srgb, var(--gray-t) 15%, transparent);
+  color: var(--gray-t);
+}
+.bar__fill.badge--green {
+  background: var(--ok);
+}
+.bar__fill.badge--yellow {
+  background: var(--warn);
+}
+.bar__fill.badge--red {
+  background: var(--crit);
+}
+/* icon + label so status never rides on color alone (.badge excludes bar fills) */
+.badge.badge--green::before {
+  content: '\2713\00a0';
+}
+.badge.badge--yellow::before {
+  content: '!\00a0';
+}
+.badge.badge--red::before {
+  content: '\2715\00a0';
+}
+
+/* Closed drawer must not be reachable by keyboard while sitting off-screen */
+.drawer {
+  visibility: hidden;
+  transition: transform 0.25s ease, visibility 0s linear 0.25s;
+}
+.drawer.open {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer {
     transition: none;
   }
 }

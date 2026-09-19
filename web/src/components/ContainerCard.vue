@@ -37,7 +37,7 @@ function formatBytes(bytes: number): string {
     tabindex="0"
     role="button"
     @click="$emit('select')"
-    @keydown.enter="$emit('select')"
+    @keydown.enter.prevent="$emit('select')"
     @keydown.space.prevent="$emit('select')"
   >
     <div class="container-card__header">
@@ -121,26 +121,6 @@ function formatBytes(bytes: number): string {
   text-transform: uppercase;
 }
 
-.badge--green {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-
-.badge--gray {
-  background: rgba(156, 163, 175, 0.15);
-  color: #9ca3af;
-}
-
-.badge--yellow {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
-}
-
-.badge--red {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
 .container-card__stat {
   display: flex;
   justify-content: space-between;
@@ -173,16 +153,6 @@ function formatBytes(bytes: number): string {
   height: 100%;
   border-radius: 999px;
   transition: width 0.4s ease;
-}
-
-.bar__fill.badge--green {
-  background: #22c55e;
-}
-.bar__fill.badge--yellow {
-  background: #eab308;
-}
-.bar__fill.badge--red {
-  background: #ef4444;
 }
 
 .container-card__status {

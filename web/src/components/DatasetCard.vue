@@ -35,7 +35,7 @@ function formatBytes(bytes: number): string {
     tabindex="0"
     role="button"
     @click="$emit('select')"
-    @keydown.enter="$emit('select')"
+    @keydown.enter.prevent="$emit('select')"
     @keydown.space.prevent="$emit('select')"
   >
     <div class="dataset-card__header">
@@ -90,21 +90,6 @@ function formatBytes(bytes: number): string {
   flex-shrink: 0;
 }
 
-.badge--green {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-
-.badge--yellow {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
-}
-
-.badge--red {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
 .bar {
   height: 6px;
   background: var(--border);
@@ -118,23 +103,9 @@ function formatBytes(bytes: number): string {
   transition: width 0.4s ease;
 }
 
-.bar__fill.badge--green {
-  background: #22c55e;
-}
-.bar__fill.badge--yellow {
-  background: #eab308;
-}
-.bar__fill.badge--red {
-  background: #ef4444;
-}
-
 .dataset-card__usage-text {
   font-size: 0.8rem;
   color: var(--text-dim);
-}
-
-.dataset-card__source {
-  opacity: 0.7;
 }
 
 @media (prefers-reduced-motion: reduce) {
