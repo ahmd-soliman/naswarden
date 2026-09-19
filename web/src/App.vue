@@ -4,7 +4,13 @@ import ServerCard from './components/ServerCard.vue'
 import PoolCard from './components/PoolCard.vue'
 import DatasetCard from './components/DatasetCard.vue'
 import ContainerCard from './components/ContainerCard.vue'
+import DetailDrawer from './components/DetailDrawer.vue'
+import ServerDetails from './components/ServerDetails.vue'
+import PoolDetails from './components/PoolDetails.vue'
+import DatasetDetails from './components/DatasetDetails.vue'
+import ContainerDetails from './components/ContainerDetails.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
+import type { Container, Dataset, Pool, ServerInfo } from './composables/usePoolSocket'
 
 const { server, pools, datasets, containers, connected } = usePoolSocket()
 
@@ -71,6 +77,21 @@ function railClass(section: 'server' | 'pools' | 'datasets' | 'containers') {
     'scroll-active': activeSection.value === 'all' && scrollSection.value === section,
   }
 }
+
+// Click-to-expand detail drawer -- one shared drawer, filled in per
+// entity type. Only one card's detail can be open at a time.
+type Selected =
+  | { kind: 'server'; data: ServerInfo }
+  | { kind: 'pool'; data: Pool }
+  | { kind: 'dataset'; data: Dataset }
+  | { kind: 'container'; data: Container }
+
+const selected = ref<Selected | null>(null)
+
+const drawerTitle = computed(() => {
+  if (!selected.value) return ''
+  return selected.value.kind === 'server' ? selected.value.data.hostname : selected.value.data.name
+})
 </script>
 
 <template>
@@ -125,13 +146,18 @@ function railClass(section: 'server' | 'pools' | 'datasets' | 'containers') {
       <main class="app__content">
         <section v-if="server" data-section="server" v-show="activeSection === 'all' || activeSection === 'server'">
           <h2>Server</h2>
-          <ServerCard :server="server" />
+          <ServerCard :server="server" @select="selected = { kind: 'server', data: server }" />
         </section>
 
         <section data-section="pools" v-show="activeSection === 'all' || activeSection === 'pools'">
           <h2>Pools</h2>
           <div class="grid">
-            <PoolCard v-for="pool in pools" :key="pool.name" :pool="pool" />
+            <PoolCard
+              v-for="pool in pools"
+              :key="pool.name"
+              :pool="pool"
+              @select="selected = { kind: 'pool', data: pool }"
+            />
             <p v-if="pools.length === 0" class="empty">Waiting for data…</p>
           </div>
         </section>
@@ -139,7 +165,12 @@ function railClass(section: 'server' | 'pools' | 'datasets' | 'containers') {
         <section data-section="datasets" v-show="activeSection === 'all' || activeSection === 'datasets'">
           <h2>Dataset quotas</h2>
           <div class="grid grid--datasets">
-            <DatasetCard v-for="dataset in sortedDatasets" :key="dataset.name" :dataset="dataset" />
+            <DatasetCard
+              v-for="dataset in sortedDatasets"
+              :key="dataset.name"
+              :dataset="dataset"
+              @select="selected = { kind: 'dataset', data: dataset }"
+            />
             <p v-if="datasets.length === 0" class="empty">No datasets with a quota configured.</p>
           </div>
         </section>
@@ -151,11 +182,23 @@ function railClass(section: 'server' | 'pools' | 'datasets' | 'containers') {
         >
           <h2>Containers</h2>
           <div class="grid grid--datasets">
-            <ContainerCard v-for="container in sortedContainers" :key="container.name" :container="container" />
+            <ContainerCard
+              v-for="container in sortedContainers"
+              :key="container.name"
+              :container="container"
+              @select="selected = { kind: 'container', data: container }"
+            />
           </div>
         </section>
       </main>
     </div>
+
+    <DetailDrawer :open="selected !== null" :title="drawerTitle" @close="selected = null">
+      <ServerDetails v-if="selected?.kind === 'server'" :server="selected.data" />
+      <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" />
+      <DatasetDetails v-else-if="selected?.kind === 'dataset'" :dataset="selected.data" />
+      <ContainerDetails v-else-if="selected?.kind === 'container'" :container="selected.data" />
+    </DetailDrawer>
   </div>
 </template>
 

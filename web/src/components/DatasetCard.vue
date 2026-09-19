@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { Dataset } from '../composables/usePoolSocket'
 
 const props = defineProps<{ dataset: Dataset }>()
+defineEmits<{ select: [] }>()
 
 const usedPercent = computed(() => {
   if (props.dataset.quota === 0) return 0
@@ -28,7 +29,7 @@ function formatBytes(bytes: number): string {
 </script>
 
 <template>
-  <div class="dataset-card">
+  <div class="dataset-card card--clickable" tabindex="0" role="button" @click="$emit('select')" @keydown.enter="$emit('select')" @keydown.space.prevent="$emit('select')">
     <div class="dataset-card__header">
       <span class="dataset-card__name">{{ dataset.name }}</span>
       <span class="badge" :class="`badge--${statusColor}`">{{ usedPercent }}%</span>

@@ -16,12 +16,26 @@ type property struct {
 	Parsed *int64 `json:"parsed"`
 }
 
+// stringProperty covers dataset properties whose `value` field is the
+// human-readable form naswarden wants to display directly (e.g.
+// compression's value is "LZ4", recordsize's is "128K") -- confirmed
+// against a live box rather than assumed, same as `property` above.
+type stringProperty struct {
+	Value string `json:"value"`
+}
+
 type rawDataset struct {
-	Name          string   `json:"name"`
-	Used          property `json:"used"`
-	UsedByDataset property `json:"usedbydataset"`
-	Quota         property `json:"quota"`
-	RefQuota      property `json:"refquota"`
+	Name            string         `json:"name"`
+	Used            property       `json:"used"`
+	UsedByDataset   property       `json:"usedbydataset"`
+	UsedBySnapshots property       `json:"usedbysnapshots"`
+	Quota           property       `json:"quota"`
+	RefQuota        property       `json:"refquota"`
+	Mountpoint      string         `json:"mountpoint"`
+	Compression     stringProperty `json:"compression"`
+	CompressRatio   stringProperty `json:"compressratio"`
+	RecordSize      stringProperty `json:"recordsize"`
+	Encrypted       bool           `json:"encrypted"`
 }
 
 // Dataset is a dataset that has an actual quota configured -- datasets
@@ -31,10 +45,16 @@ type rawDataset struct {
 // tonight that some datasets use one, some the other, never assume
 // either is the one that's set.
 type Dataset struct {
-	Name        string `json:"name"`
-	Used        int64  `json:"used"`
-	Quota       int64  `json:"quota"`
-	QuotaSource string `json:"quota_source"` // "quota" or "refquota"
+	Name            string `json:"name"`
+	Used            int64  `json:"used"`
+	Quota           int64  `json:"quota"`
+	QuotaSource     string `json:"quota_source"` // "quota" or "refquota"
+	Mountpoint      string `json:"mountpoint"`
+	Compression     string `json:"compression"`    // e.g. "LZ4"
+	CompressRatio   string `json:"compress_ratio"` // e.g. "1.08x"
+	RecordSize      string `json:"recordsize"`     // e.g. "128K"
+	Encrypted       bool   `json:"encrypted"`
+	UsedBySnapshots int64  `json:"used_by_snapshots"` // bytes
 }
 
 // ListDatasets calls pool.dataset.query and returns only datasets with a
@@ -86,11 +106,22 @@ func ListDatasets(ctx context.Context, c *Client) ([]Dataset, error) {
 			}
 		}
 
+		var usedBySnapshots int64
+		if rd.UsedBySnapshots.Parsed != nil {
+			usedBySnapshots = *rd.UsedBySnapshots.Parsed
+		}
+
 		datasets = append(datasets, Dataset{
-			Name:        rd.Name,
-			Used:        used,
-			Quota:       quota,
-			QuotaSource: source,
+			Name:            rd.Name,
+			Used:            used,
+			Quota:           quota,
+			QuotaSource:     source,
+			Mountpoint:      rd.Mountpoint,
+			Compression:     rd.Compression.Value,
+			CompressRatio:   rd.CompressRatio.Value,
+			RecordSize:      rd.RecordSize.Value,
+			Encrypted:       rd.Encrypted,
+			UsedBySnapshots: usedBySnapshots,
 		})
 	}
 	return datasets, nil
