@@ -16,11 +16,17 @@ import VMDetails from './components/VMDetails.vue'
 import ContainerDetails from './components/ContainerDetails.vue'
 import StackDetails from './components/StackDetails.vue'
 import AlertsDetails from './components/AlertsDetails.vue'
+import ListTable from './components/ListTable.vue'
+import type { Column } from './components/ListTable.vue'
+import ViewToggle from './components/ViewToggle.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
 import type { Alert, Container, Dataset, Pool, ServerInfo, VM } from './composables/usePoolSocket'
-import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped } from './composables/useStacks'
+import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped, memberBadge, stackBadgeLabel } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
 import { vmIconCandidates } from './composables/useVMs'
+import { formatBytes } from './composables/format'
+import { useViewMode } from './composables/useViewMode'
+import { useWide } from './composables/useWide'
 import { matchesContainer, matchesDataset, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
 const { server, pools, datasets, containers, vms, alerts, replications, connected, updatedAt, staleSources } = usePoolSocket()
@@ -307,6 +313,34 @@ function stackActive(name: string) {
   return (t?.kind === 'stack' && t.name === name) || (t?.kind === 'container' && t.fromStack === name)
 }
 
+// ---- desktop: card/table lists and the docked detail panel ---------------
+const stackView = useViewMode('stacks', 'cards')
+const containerView = useViewMode('containers', 'table')
+// On a wide screen the detail panel sits beside the content instead of
+// covering it, so a row can be compared against its neighbours.
+const wide = useWide(1200)
+
+const HEALTH_ORDER: Record<string, number> = { red: 0, yellow: 1, green: 2, gray: 3 }
+const pct = (n: number) => `${n.toFixed(1)}%`
+
+const stackColumns: Column<Stack>[] = [
+  { key: 'name', label: 'Stack', value: (s) => s.name },
+  { key: 'status', label: 'Status', value: (s) => HEALTH_ORDER[s.health] },
+  { key: 'running', label: 'Running', value: (s) => s.running / Math.max(1, s.total), align: 'right' },
+  { key: 'cpu', label: 'CPU', value: (s) => s.cpu, align: 'right' },
+  { key: 'mem', label: 'Memory', value: (s) => s.mem, align: 'right' },
+  { key: 'members', label: 'Containers', value: (s) => s.members.length, align: 'right' },
+]
+const containerColumns: Column<Container>[] = [
+  { key: 'name', label: 'Container', value: (c) => c.name },
+  { key: 'stack', label: 'Stack', value: (c) => c.stack || '—' },
+  { key: 'state', label: 'State', value: (c) => memberBadge(c).label },
+  { key: 'cpu', label: 'CPU', value: (c) => c.cpu_percent, align: 'right' },
+  { key: 'mem', label: 'Memory', value: (c) => c.mem_used, align: 'right' },
+  { key: 'image', label: 'Image', value: (c) => c.image },
+]
+const containerActive = (c: Container) => selectedTarget.value?.kind === 'container' && selectedTarget.value.name === c.name
+
 const activeAlerts = computed(() => alerts.value.filter((a) => !a.dismissed))
 const topAlertLevel = computed<'critical' | 'warning' | 'info' | null>(() => {
   if (activeAlerts.value.some((a) => a.level === 'CRITICAL' || a.level === 'ERROR')) return 'critical'
@@ -326,7 +360,7 @@ const alertPillLabel = computed(() => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ 'app--docked-open': wide && selected !== null }">
     <header class="app__topbar">
       <div class="app__brand">
         <img src="/favicon.svg" alt="" class="app__logo" />
@@ -447,7 +481,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
         </button>
       </nav>
 
-      <main class="app__content">
+      <main class="app__content" :class="{ 'app__content--overview': activeSection === 'all' }">
         <p v-if="q && resultCount === 0" class="empty">No matches for “{{ query.trim() }}”.</p>
         <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
 
@@ -491,7 +525,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 
         <section v-if="hasVMs" v-show="sectionVisible('vms')" data-section="vms">
           <h2>Virtual Machines & Containers</h2>
-          <div class="grid">
+          <div class="grid grid--vms">
             <VMCard
               v-for="vm in filteredVMs"
               :key="vm.name"
@@ -502,9 +536,12 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
           </div>
         </section>
 
-        <section v-if="hasStacks" v-show="sectionVisible('stacks')" data-section="stacks">
-          <h2>Stacks</h2>
-          <div class="grid">
+        <section v-if="hasStacks" v-show="sectionVisible('stacks')" data-section="stacks" class="section--stack">
+          <div class="section__head">
+            <h2>Stacks</h2>
+            <ViewToggle v-model="stackView" label="Stacks view" />
+          </div>
+          <div v-if="stackView === 'cards'" class="grid">
             <StackCard
               v-for="stack in filteredStacks"
               :key="stack.name"
@@ -513,26 +550,67 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
               @select="openStack(stack.name)"
             />
           </div>
+          <ListTable
+            v-else
+            caption="Stacks"
+            :rows="filteredStacks"
+            :columns="stackColumns"
+            :row-key="(s: Stack) => s.name"
+            :is-active="(s: Stack) => stackActive(s.name)"
+            :default-sort="{ key: 'status', dir: 'asc' }"
+            @select="(s: Stack) => openStack(s.name)"
+          >
+            <template #cell-name="{ row }">
+              <AppIcon :candidates="iconCandidates(row)" :size="18" />
+              {{ row.name }}
+            </template>
+            <template #cell-status="{ row }">
+              <span class="badge" :class="`badge--${row.health}`">{{ stackBadgeLabel(row) }}</span>
+            </template>
+            <template #cell-running="{ row }">{{ row.running }}/{{ row.total }}</template>
+            <template #cell-cpu="{ row }">{{ row.running ? pct(row.cpu) : '—' }}</template>
+            <template #cell-mem="{ row }">{{ row.running ? formatBytes(row.mem) : '—' }}</template>
+          </ListTable>
         </section>
 
         <!-- Stacks is the default landing view, so the flat list lives on its own tab -->
-        <section v-if="hasContainers" v-show="sectionVisible('containers')" data-section="containers">
-          <h2>Containers</h2>
-          <div class="grid grid--datasets">
+        <section v-if="hasContainers" v-show="sectionVisible('containers')" data-section="containers" class="section--container">
+          <div class="section__head">
+            <h2>Containers</h2>
+            <ViewToggle v-model="containerView" label="Containers view" />
+          </div>
+          <div v-if="containerView === 'cards'" class="grid grid--datasets">
             <ContainerCard
               v-for="container in filteredContainers"
               :key="container.name"
               :container="container"
-              :active="selectedTarget?.kind === 'container' && selectedTarget.name === container.name"
+              :active="containerActive(container)"
               @select="openContainer(container.name)"
             />
           </div>
+          <ListTable
+            v-else
+            caption="Containers"
+            :rows="filteredContainers"
+            :columns="containerColumns"
+            :row-key="(c: Container) => c.name"
+            :is-active="containerActive"
+            :default-sort="{ key: 'name', dir: 'asc' }"
+            @select="(c: Container) => openContainer(c.name)"
+          >
+            <template #cell-state="{ row }">
+              <span class="badge" :class="memberBadge(row).cls">{{ memberBadge(row).label }}</span>
+            </template>
+            <template #cell-cpu="{ row }">{{ row.state === 'running' ? pct(row.cpu_percent) : '—' }}</template>
+            <template #cell-mem="{ row }">{{ row.state === 'running' ? formatBytes(row.mem_used) : '—' }}</template>
+          </ListTable>
         </section>
       </main>
     </div>
 
     <DetailDrawer
       :open="selected !== null"
+      :docked="wide"
       :title="drawerTitle"
       :back="drawerBack"
       @close="selectedTarget = null"
@@ -571,17 +649,29 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 
 <style scoped>
 .app {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
+  /* Full width: a fixed 1400px column left ~260px of dead space each side on a
+     1920 screen and made the page read like a phone app. */
+  padding: 1.25rem clamp(1rem, 2vw, 2.5rem);
+  transition: padding-right 0.25s ease;
+}
+
+/* The detail panel is docked beside the content on wide screens */
+.app--docked-open {
+  padding-right: calc(420px + 1.5rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app {
+    transition: none;
+  }
 }
 
 .app__topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 1.25rem;
-  margin-bottom: 1.5rem;
+  padding-bottom: 0.9rem;
+  margin-bottom: 1.1rem;
   border-bottom: 1px solid var(--border);
 }
 
@@ -790,7 +880,24 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 }
 
 section {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 0.75rem;
+}
+.section__head h2 {
+  margin: 0;
+}
+.section--stack {
+  --accent: var(--stack);
+}
+.section--container {
+  --accent: var(--container);
 }
 
 section h2 {
@@ -804,12 +911,44 @@ section h2 {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.75rem;
 }
 
 .grid--datasets {
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+}
+
+/* Pool cards differ a lot in content (replication lines): keep their own height */
+[data-section='pools'] .grid {
+  align-items: start;
+}
+
+/* Overview (All): the server and the pools share one row on a wide screen,
+   so the health of the whole box fits in the first screenful. */
+@media (min-width: 1500px) {
+  .app__content--overview {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .app__content--overview > section {
+    grid-column: 1 / -1;
+  }
+  .app__content--overview > section[data-section='server'] {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .app__content--overview > section[data-section='pools'] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/* VM cards carry OS + hardware pills + port on one line: give them room */
+.grid--vms {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 }
 
 .empty {
@@ -830,6 +969,7 @@ section h2 {
   }
   .app__layout {
     flex-direction: column;
+    align-items: stretch; /* otherwise a wide table stretches the whole page */
   }
   .rail {
     flex: none;
