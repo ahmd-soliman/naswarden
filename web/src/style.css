@@ -9,16 +9,21 @@
 
   /* Per-type accent colors -- top-edge border on cards and the rail icon.
      Chosen with the dataviz palette validator (dark mode, on --card-bg):
-     violet > magenta > blue > orange passes every gate (worst adjacent
-     CVD dE 15.9, normal-vision 19.7). Server is a single card, not a
-     category to tell apart, so it deliberately has no accent. Kept
-     separate from the status colors below. */
+     the five accents, in rail order (Pools, Datasets, VMs, Stacks,
+     Containers) = violet, magenta, teal, blue, orange, pass every gate.
+     The four original accents separate by CVD dE 15.9 / normal-vision 19.7;
+     the VM teal is the tight one (normal-vision 15.9 from its neighbours,
+     15.9 from the status colours) and its colour-blind (deutan) separation
+     is 6.7 -- the validator's floor band, legal only because every use is
+     backed by a text label. A brighter cyan (#06b6d4) fails outright between
+     magenta and blue. Server is a single card, not a category to tell apart,
+     so it deliberately has no accent. Kept separate from the status colors. */
   --server: var(--text);
   --pool: #9085e9;
   --dataset: #d55181;
   --stack: #3987e5;
   --container: #d95926;
-  --vm: #06b6d4;
+  --vm: #058d85;
 
   /* Status: *-fill for bars/segments, *-t for text (lightened until it
      clears 4.5:1 on its own 15% tint, including on the drawer's lighter
