@@ -7,6 +7,15 @@
   --text: #e5e7eb;
   --text-dim: #9ca3af;
 
+  /* Per-section accent colors -- used as a top-edge border on cards and
+     the nav rail's active/scroll-highlighted icon, so each section type
+     (server/pools/datasets/containers) reads at a glance without
+     touching the red/yellow/green status colors used for health. */
+  --server: #14b8a6;
+  --pool: #3b82f6;
+  --dataset: #a78bfa;
+  --container: #fb923c;
+
   font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
