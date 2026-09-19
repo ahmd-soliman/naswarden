@@ -1,5 +1,7 @@
 package vm
 
+import "sort"
+
 // Instance is a virtual machine or container managed by Incus or TrueNAS.
 type Instance struct {
 	Name        string            `json:"name"`
@@ -27,4 +29,19 @@ type Instance struct {
 	DisplayPort int               `json:"display_port,omitempty"` // SPICE/VNC native port (e.g. 5901)
 	WebPort     int               `json:"web_port,omitempty"`     // SPICE/VNC web port (e.g. 5902)
 	Passthrough []string          `json:"passthrough,omitempty"`  // PCI passthrough devices (e.g. ["NVIDIA GeForce GTX 1050 Ti"])
+}
+
+// Sort orders instances the way every view wants them: KVM VMs before LXC
+// containers, then by manager, then by name.
+func Sort(instances []Instance) {
+	sort.Slice(instances, func(i, j int) bool {
+		a, b := instances[i], instances[j]
+		if a.IsVM != b.IsVM {
+			return a.IsVM
+		}
+		if a.Manager != b.Manager {
+			return a.Manager < b.Manager
+		}
+		return a.Name < b.Name
+	})
 }

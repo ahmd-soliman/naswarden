@@ -12,7 +12,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -318,13 +317,19 @@ func (c *Client) ListInstances(ctx context.Context) ([]Instance, error) {
 		instances = append(instances, inst)
 	}
 
-	// Sort: VMs first, then containers; alphabetically within type
-	sort.Slice(instances, func(i, j int) bool {
-		if instances[i].IsVM != instances[j].IsVM {
-			return instances[i].IsVM // true (VM) before false (container)
+	vm.Sort(instances)
+
+	// Forget CPU samples of instances that no longer exist, or the map
+	// grows forever as instances are created and deleted.
+	seen := make(map[string]struct{}, len(res.Metadata))
+	for _, raw := range res.Metadata {
+		seen[raw.Name] = struct{}{}
+	}
+	for name := range c.prevCPU {
+		if _, ok := seen[name]; !ok {
+			delete(c.prevCPU, name)
 		}
-		return instances[i].Name < instances[j].Name
-	})
+	}
 
 	return instances, nil
 }
