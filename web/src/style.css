@@ -61,12 +61,36 @@ h1 {
    different entity types. */
 .card--clickable {
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
-.card--clickable:hover,
-.card--clickable.card--open {
+
+/* Hover / open: the type-colour bar BRIGHTENS in its own hue (it must not lose
+   its colour -- that is the card's type cue, and grey reads as "disabled"), the
+   other borders lighten, and a soft glow in the type colour sits under the card.
+   The open card keeps this for as long as its drawer is up.
+   The class is doubled on purpose: each card's own scoped border rule has the
+   same specificity as a single-class hover rule and comes later in the
+   stylesheet, so it used to win -- which is why the hover never lightened the
+   borders at all. Cards without an accent (Server) fall back to the border color. */
+.card--clickable.card--open,
+.card--clickable.card--clickable.card--open {
   border-color: rgba(255, 255, 255, 0.25);
+  border-top-color: color-mix(in srgb, var(--accent, var(--border)) 62%, white);
+  box-shadow:
+    0 -1px 0 0 color-mix(in srgb, var(--accent, var(--border)) 38%, transparent),
+    0 6px 16px -11px color-mix(in srgb, var(--accent, var(--border)) 50%, transparent);
   transform: translateY(-1px);
+}
+/* :hover only where hovering exists -- on touch it sticks after a tap */
+@media (hover: hover) {
+  .card--clickable.card--clickable:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+    border-top-color: color-mix(in srgb, var(--accent, var(--border)) 62%, white);
+    box-shadow:
+      0 -1px 0 0 color-mix(in srgb, var(--accent, var(--border)) 38%, transparent),
+      0 6px 16px -11px color-mix(in srgb, var(--accent, var(--border)) 50%, transparent);
+    transform: translateY(-1px);
+  }
 }
 .card--clickable:focus-visible {
   outline: 2px solid var(--ok-t);
