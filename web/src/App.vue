@@ -22,7 +22,7 @@ import type { Stack } from './composables/useStacks'
 import { vmIconCandidates } from './composables/useVMs'
 import { matchesContainer, matchesDataset, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
-const { server, pools, datasets, containers, vms, connected, updatedAt } = usePoolSocket()
+const { server, pools, datasets, containers, vms, connected, updatedAt, staleSources } = usePoolSocket()
 
 // Data freshness. The backend refreshes every 60s; if it stops getting data
 // (TrueNAS unreachable, refresh failing) it broadcasts nothing, so a browser
@@ -39,13 +39,18 @@ const ageSeconds = computed(() =>
   updatedAt.value === null ? null : Math.max(0, Math.floor(nowMs.value / 1000 - updatedAt.value)),
 )
 const isStale = computed(() => connected.value && ageSeconds.value !== null && ageSeconds.value > STALE_AFTER_SECONDS)
-const connLabel = computed(() => (!connected.value ? 'reconnecting…' : isStale.value ? 'stale' : 'live'))
+// A source that failed its last refresh still shows its previous data (so
+// cards don't vanish) -- say so instead of calling everything "live".
+const isPartial = computed(() => connected.value && !isStale.value && staleSources.value.length > 0)
+const connLabel = computed(() =>
+  !connected.value ? 'reconnecting…' : isStale.value ? 'stale' : isPartial.value ? 'partial' : 'live',
+)
 const ageLabel = computed(() => {
   const s = ageSeconds.value
   if (s === null) return ''
-  if (s < 60) return `updated ${s}s ago`
-  if (s < 3600) return `updated ${Math.floor(s / 60)}m ago`
-  return `updated ${Math.floor(s / 3600)}h ago`
+  const age = s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m` : `${Math.floor(s / 3600)}h`
+  const note = staleSources.value.length ? ` · ${staleSources.value.join(', ')} not updating` : ''
+  return `updated ${age} ago${note}`
 })
 
 // Highest utilization first -- the datasets closest to trouble should be
@@ -310,7 +315,7 @@ function stackActive(name: string) {
       <div class="conn-group">
         <span class="conn__age">{{ ageLabel }}</span>
         <!-- only the state is announced to screen readers, not the ticking age -->
-        <span class="conn" :class="{ 'conn--live': connected && !isStale, 'conn--stale': isStale }" role="status">
+        <span class="conn" :class="{ 'conn--live': connected && !isStale && !isPartial, 'conn--stale': isStale || isPartial }" role="status">
           {{ connLabel }}
         </span>
       </div>
