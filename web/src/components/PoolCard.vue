@@ -35,7 +35,7 @@ function formatBytes(bytes: number): string {
     tabindex="0"
     role="button"
     @click="$emit('select')"
-    @keydown.enter="$emit('select')"
+    @keydown.enter.prevent="$emit('select')"
     @keydown.space.prevent="$emit('select')"
   >
     <div class="pool-card__header">
@@ -94,21 +94,6 @@ function formatBytes(bytes: number): string {
   letter-spacing: 0.03em;
 }
 
-.badge--green {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-}
-
-.badge--yellow {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
-}
-
-.badge--red {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
 .pool-card__usage {
   display: flex;
   flex-direction: column;
@@ -128,16 +113,6 @@ function formatBytes(bytes: number): string {
   transition: width 0.4s ease;
 }
 
-.bar__fill.badge--green {
-  background: #22c55e;
-}
-.bar__fill.badge--yellow {
-  background: #eab308;
-}
-.bar__fill.badge--red {
-  background: #ef4444;
-}
-
 .pool-card__usage-text {
   font-size: 0.85rem;
   color: var(--text-dim);
@@ -149,7 +124,7 @@ function formatBytes(bytes: number): string {
 }
 
 .pool-card__scan-errors {
-  color: #ef4444;
+  color: var(--crit-t);
   font-weight: 600;
 }
 

@@ -51,7 +51,7 @@ function formatUptime(seconds: number): string {
     tabindex="0"
     role="button"
     @click="$emit('select')"
-    @keydown.enter="$emit('select')"
+    @keydown.enter.prevent="$emit('select')"
     @keydown.space.prevent="$emit('select')"
   >
     <div class="server-card__row">
@@ -152,13 +152,13 @@ function formatUptime(seconds: number): string {
 }
 
 .temp--green {
-  color: #22c55e;
+  color: var(--ok-t);
 }
 .temp--yellow {
-  color: #eab308;
+  color: var(--warn-t);
 }
 .temp--red {
-  color: #ef4444;
+  color: var(--crit-t);
 }
 
 .server-card__mem {
@@ -184,16 +184,6 @@ function formatUptime(seconds: number): string {
   height: 100%;
   border-radius: 999px;
   transition: width 0.4s ease;
-}
-
-.bar__fill.badge--green {
-  background: #22c55e;
-}
-.bar__fill.badge--yellow {
-  background: #eab308;
-}
-.bar__fill.badge--red {
-  background: #ef4444;
 }
 
 @media (prefers-reduced-motion: reduce) {
