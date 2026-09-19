@@ -214,3 +214,7 @@ go test -race ./...
 npm run lint
 npm test
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
