@@ -65,7 +65,8 @@ function formatBytes(bytes: number): string {
 .pool-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-top: 3px solid var(--pool);
+  --accent: var(--pool);
+  border-top: 3px solid var(--accent);
   border-radius: 10px;
   padding: 1.25rem;
   display: flex;

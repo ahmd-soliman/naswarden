@@ -69,7 +69,8 @@ function formatBytes(bytes: number): string {
 .stack-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-top: 3px solid var(--stack);
+  --accent: var(--stack);
+  border-top: 3px solid var(--accent);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   display: flex;
