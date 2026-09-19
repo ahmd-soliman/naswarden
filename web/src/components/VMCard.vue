@@ -177,10 +177,10 @@ function formatBytes(bytes: number): string {
   --accent: var(--vm);
   border-top: 3px solid var(--accent);
   border-radius: 10px;
-  padding: 1rem 1.25rem;
+  padding: 1.15rem 1.35rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.55rem;
 }
 
 .vm-card--stopped .vm-card__name {
@@ -196,7 +196,7 @@ function formatBytes(bytes: number): string {
 }
 
 .vm-card__name {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   font-family: ui-monospace, monospace;
   overflow-wrap: anywhere;
@@ -323,7 +323,7 @@ function formatBytes(bytes: number): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-dim);
 }
 
@@ -347,7 +347,7 @@ function formatBytes(bytes: number): string {
 }
 
 .bar {
-  height: 6px;
+  height: 7px;
   background: var(--border);
   border-radius: 999px;
   overflow: hidden;
