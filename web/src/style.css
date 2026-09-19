@@ -386,3 +386,9 @@ h1 {
   white-space: nowrap;
   border: 0;
 }
+
+/* Docked detail panel (wide screens): beside the content, not over it */
+.drawer.drawer--docked {
+  box-shadow: none;
+  z-index: 50;
+}
