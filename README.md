@@ -106,6 +106,21 @@ naswarden_container_up{stack="media", container="jellyfin"} == 0
 
 `deploy/prometheus/naswarden.rules.yml` contains 10 rules covering NasWarden itself (refresh stale for 3 min, a source not updating for 5 min, not scraped), TrueNAS (critical alerts, unresolved warnings, degraded pool, disk over 55 C / 60 C) and replication (task failed, no success for 26 h). Add it to `rule_files` and adjust thresholds to taste. Validate with `promtool check rules deploy/prometheus/naswarden.rules.yml`.
 
+#### 6. Grafana dashboard
+
+`deploy/grafana/naswarden.dashboard.json` is a ready-made dashboard (uid `naswarden-overview`, 21 panels): health at a glance, pool and dataset usage, capacity trends, disk temperatures, TrueNAS alerts, replication status, containers that are down and per-source freshness. It uses a `datasource` variable, so it works with any Prometheus datasource that scrapes NasWarden.
+
+Import it in the UI (**Dashboards -> New -> Import**, then pick your Prometheus datasource), or through the API:
+
+```sh
+# TOKEN: a Grafana service-account token with the Editor role
+jq '{dashboard: (. + {id: null}), overwrite: false}' deploy/grafana/naswarden.dashboard.json |
+  curl -s -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+    --data @- http://grafana:3000/api/dashboards/db
+```
+
+Importing adds a new dashboard; it never touches existing ones unless you re-import the same uid with `overwrite: true`.
+
 ---
 
 ## Configuration
