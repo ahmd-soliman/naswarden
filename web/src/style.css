@@ -18,6 +18,7 @@
   --dataset: #d55181;
   --stack: #3987e5;
   --container: #d95926;
+  --vm: #06b6d4;
 
   /* Status: *-fill for bars/segments, *-t for text (lightened until it
      clears 4.5:1 on its own 15% tint, including on the drawer's lighter

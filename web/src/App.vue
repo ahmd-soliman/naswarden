@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ServerCard from './components/ServerCard.vue'
 import PoolCard from './components/PoolCard.vue'
 import DatasetCard from './components/DatasetCard.vue'
+import VMCard from './components/VMCard.vue'
 import ContainerCard from './components/ContainerCard.vue'
 import StackCard from './components/StackCard.vue'
 import AppIcon from './components/AppIcon.vue'
@@ -11,15 +12,16 @@ import DetailDrawer from './components/DetailDrawer.vue'
 import ServerDetails from './components/ServerDetails.vue'
 import PoolDetails from './components/PoolDetails.vue'
 import DatasetDetails from './components/DatasetDetails.vue'
+import VMDetails from './components/VMDetails.vue'
 import ContainerDetails from './components/ContainerDetails.vue'
 import StackDetails from './components/StackDetails.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
-import type { Container, Dataset, Pool, ServerInfo } from './composables/usePoolSocket'
+import type { Container, Dataset, Pool, ServerInfo, VM } from './composables/usePoolSocket'
 import { buildStacks, iconCandidates, isStopped } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
-import { matchesContainer, matchesDataset, matchesPool, matchesStack, normalizeQuery } from './composables/search'
+import { matchesContainer, matchesDataset, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
-const { server, pools, datasets, containers, connected, updatedAt } = usePoolSocket()
+const { server, pools, datasets, containers, vms, connected, updatedAt } = usePoolSocket()
 
 // Data freshness. The backend refreshes every 60s; if it stops getting data
 // (TrueNAS unreachable, refresh failing) it broadcasts nothing, so a browser
@@ -68,13 +70,13 @@ const sortedContainers = computed(() =>
 )
 
 const hasContainers = computed(() => liveContainers.value.length > 0)
-
+const hasVMs = computed(() => vms.value.length > 0)
 
 // 'all' shows every section at once (the default, glanceable overview);
 // picking a rail item filters down to just that section. Filtering never
 // hides data the "All" view wouldn't already show -- it's a convenience,
 // not a different data set.
-const activeSection = ref<'all' | 'server' | 'pools' | 'datasets' | 'stacks' | 'containers'>('all')
+const activeSection = ref<'all' | 'server' | 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers'>('all')
 
 function selectSection(name: typeof activeSection.value) {
   activeSection.value = name
@@ -83,19 +85,22 @@ function selectSection(name: typeof activeSection.value) {
 
 // ---- search ------------------------------------------------------------
 // One box filters every list at once by name (stacks also by member name,
-// containers also by stack and image). It applies within whichever sections
-// the rail currently shows, and hides a section that has no match.
+// containers also by stack and image, VMs also by type/OS/IP). It applies
+// within whichever sections the rail currently shows, and hides a section
+// that has no match.
 const query = ref('')
 const q = computed(() => normalizeQuery(query.value))
 const filteredPools = computed(() => pools.value.filter((p) => matchesPool(p, q.value)))
 const filteredDatasets = computed(() => sortedDatasets.value.filter((d) => matchesDataset(d, q.value)))
+const filteredVMs = computed(() => vms.value.filter((v) => matchesVM(v, q.value)))
 const filteredStacks = computed(() => stacks.value.filter((s) => matchesStack(s, q.value)))
 const filteredContainers = computed(() => sortedContainers.value.filter((c) => matchesContainer(c, q.value)))
 
-type Searchable = 'pools' | 'datasets' | 'stacks' | 'containers'
+type Searchable = 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers'
 const matchCount = computed<Record<Searchable, number>>(() => ({
   pools: filteredPools.value.length,
   datasets: filteredDatasets.value.length,
+  vms: filteredVMs.value.length,
   stacks: filteredStacks.value.length,
   containers: filteredContainers.value.length,
 }))
@@ -111,7 +116,7 @@ function sectionVisible(name: Searchable) {
   return inScope(name) && (!q.value || matchCount.value[name] > 0)
 }
 const resultCount = computed(() =>
-  (['pools', 'datasets', 'stacks', 'containers'] as Searchable[])
+  (['pools', 'datasets', 'vms', 'stacks', 'containers'] as Searchable[])
     .filter(inScope)
     .reduce((sum, name) => sum + matchCount.value[name], 0),
 )
@@ -131,7 +136,7 @@ onBeforeUnmount(() => clearTimeout(announceTimer))
 // view and highlight the matching rail item -- without hiding any other
 // section. Paused while a specific section is filtered in, since every
 // other section is already hidden then.
-const scrollSection = ref<'server' | 'pools' | 'datasets' | 'stacks' | 'containers'>('server')
+const scrollSection = ref<'server' | 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers'>('server')
 let observer: IntersectionObserver | null = null
 
 function initObserver() {
@@ -151,12 +156,12 @@ function initObserver() {
 }
 
 onMounted(() => nextTick(initObserver))
-// Containers section only exists in the DOM once containers show up --
-// re-observe when that changes so the rail highlight tracks it too.
-watch([hasContainers, hasStacks], () => nextTick(initObserver))
+// Containers/VMs sections only exist in the DOM once telemetry arrives --
+// re-observe when that changes so the rail highlight tracks them too.
+watch([hasContainers, hasStacks, hasVMs], () => nextTick(initObserver))
 onBeforeUnmount(() => observer?.disconnect())
 
-function railClass(section: 'server' | 'pools' | 'datasets' | 'stacks' | 'containers') {
+function railClass(section: 'server' | 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers') {
   return {
     active: activeSection.value === section,
     'scroll-active': activeSection.value === 'all' && scrollSection.value === section,
@@ -169,6 +174,7 @@ type Selected =
   | { kind: 'server'; data: ServerInfo }
   | { kind: 'pool'; data: Pool }
   | { kind: 'dataset'; data: Dataset }
+  | { kind: 'vm'; data: VM }
   | { kind: 'stack'; data: Stack }
   // fromStack: opened by drilling down from that stack's drawer, so the
   // drawer offers a way back to it
@@ -178,6 +184,7 @@ type SelectionTarget =
   | { kind: 'server' }
   | { kind: 'pool'; name: string }
   | { kind: 'dataset'; name: string }
+  | { kind: 'vm'; name: string }
   | { kind: 'stack'; name: string }
   | { kind: 'container'; name: string; fromStack?: string }
 
@@ -189,6 +196,7 @@ const lastSnapshots = {
   server: null as ServerInfo | null,
   pools: new Map<string, Pool>(),
   datasets: new Map<string, Dataset>(),
+  vms: new Map<string, VM>(),
   stacks: new Map<string, Stack>(),
   containers: new Map<string, Container>(),
 }
@@ -216,6 +224,12 @@ const selected = computed<Selected | null>(() => {
       if (live) lastSnapshots.datasets.set(target.name, live)
       const current = live ?? lastSnapshots.datasets.get(target.name)
       return current ? { kind: 'dataset', data: current } : null
+    }
+    case 'vm': {
+      const live = vms.value.find((v) => v.name === target.name)
+      if (live) lastSnapshots.vms.set(target.name, live)
+      const current = live ?? lastSnapshots.vms.get(target.name)
+      return current ? { kind: 'vm', data: current } : null
     }
     case 'stack': {
       const live = stacks.value.find((s) => s.name === target.name)
@@ -305,6 +319,16 @@ function stackActive(name: string) {
           Datasets
         </button>
         <button
+          v-if="hasVMs"
+          class="rail__item rail__item--vm"
+          :class="railClass('vms')"
+          :aria-current="activeSection === 'vms' ? 'true' : undefined"
+          @click="selectSection('vms')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
+          VMs
+        </button>
+        <button
           v-if="hasStacks"
           class="rail__item rail__item--stack"
           :class="railClass('stacks')"
@@ -367,6 +391,19 @@ function stackActive(name: string) {
           </div>
         </section>
 
+        <section v-if="hasVMs" data-section="vms" v-show="sectionVisible('vms')">
+          <h2>Virtual Machines & Containers</h2>
+          <div class="grid grid--datasets">
+            <VMCard
+              v-for="vm in filteredVMs"
+              :key="vm.name"
+              :vm="vm"
+              :active="selectedTarget?.kind === 'vm' && selectedTarget.name === vm.name"
+              @select="selectedTarget = { kind: 'vm', name: vm.name }"
+            />
+          </div>
+        </section>
+
         <section v-if="hasStacks" data-section="stacks" v-show="sectionVisible('stacks')">
           <h2>Stacks</h2>
           <div class="grid">
@@ -409,6 +446,7 @@ function stackActive(name: string) {
       <ServerDetails v-if="selected?.kind === 'server'" :server="selected.data" />
       <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" />
       <DatasetDetails v-else-if="selected?.kind === 'dataset'" :dataset="selected.data" />
+      <VMDetails v-else-if="selected?.kind === 'vm'" :vm="selected.data" />
       <StackDetails
         v-else-if="selected?.kind === 'stack'"
         :stack="selected.data"
@@ -548,6 +586,10 @@ function stackActive(name: string) {
 .rail__item--dataset.active svg,
 .rail__item--dataset.scroll-active svg {
   color: var(--dataset);
+}
+.rail__item--vm.active svg,
+.rail__item--vm.scroll-active svg {
+  color: var(--vm);
 }
 .rail__item--stack.active svg,
 .rail__item--stack.scroll-active svg {

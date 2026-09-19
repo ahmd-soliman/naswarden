@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/ahmd-soliman/naswarden/internal/docker"
+	"github.com/ahmd-soliman/naswarden/internal/incus"
 	"github.com/ahmd-soliman/naswarden/internal/metrics"
 	"github.com/ahmd-soliman/naswarden/internal/truenas"
 	"github.com/ahmd-soliman/naswarden/internal/web"
@@ -51,16 +52,37 @@ func main() {
 		slog.Info("docker container stats enabled", "proxy", proxyURL)
 	}
 
+	// Incus VM & container monitoring is optional -- naswarden runs fine
+	// without it if INCUS_URL or credentials aren't set.
+	var incusClient *incus.Client
+	incusURL := os.Getenv("INCUS_URL")
+	incusCert := os.Getenv("INCUS_CLIENT_CERT")
+	if incusCert == "" {
+		incusCert = os.Getenv("INCUS_CLIENT_CRT")
+	}
+	incusKey := os.Getenv("INCUS_CLIENT_KEY")
+	insecureIncusTLS := os.Getenv("INCUS_INSECURE_TLS") != "false"
+
+	if incusURL != "" && incusCert != "" && incusKey != "" {
+		c, err := incus.NewClient(incusURL, incusCert, incusKey, insecureIncusTLS)
+		if err != nil {
+			slog.Warn("failed to initialize Incus client", "err", err)
+		} else {
+			incusClient = c
+			slog.Info("incus instance monitoring enabled", "url", incusURL)
+		}
+	}
+
 	hub := ws.NewHub()
 
-	// Refresh loop: poll TrueNAS, push to every connected client. Decoupled
-	// from any client's own connection lifecycle or Prometheus scrape
-	// interval -- one internal cadence, fan out to everyone.
+	// Refresh loop: poll TrueNAS, Docker, and Incus, push to every connected
+	// client. Decoupled from any client's own connection lifecycle or Prometheus
+	// scrape interval -- one internal cadence, fan out to everyone.
 	go func() {
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
 		for {
-			refresh(client, dockerClient, hub)
+			refresh(client, dockerClient, incusClient, hub)
 			<-ticker.C
 		}
 	}()
@@ -88,10 +110,10 @@ func main() {
 
 // refresh fetches everything naswarden tracks in one pass: pushed to
 // WebSocket clients as a single combined message (so the UI always
-// renders a consistent snapshot, not pools and datasets from two
+// renders a consistent snapshot, not pools, datasets, and instances from
 // different refresh moments), and separately fed into the Prometheus
 // gauges for /metrics.
-func refresh(client *truenas.Client, dockerClient *docker.Client, hub *ws.Hub) {
+func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *incus.Client, hub *ws.Hub) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -116,13 +138,24 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, hub *ws.Hub) {
 
 	// Docker is optional and refreshed best-effort -- a failure here
 	// (proxy briefly unreachable) shouldn't take down pool/dataset
-	// reporting, which is why this doesn't early-return like the two
-	// TrueNAS calls above.
+	// reporting, which is why this doesn't early-return like the TrueNAS
+	// calls above.
 	var containers []docker.Container
 	if dockerClient != nil {
 		containers, err = dockerClient.ListContainers(ctx)
 		if err != nil {
 			slog.Error("failed to refresh containers", "err", err)
+		}
+	}
+
+	// Incus VMs & containers are also optional and refreshed best-effort.
+	vms := []incus.Instance{}
+	if incusClient != nil {
+		var err error
+		vms, err = incusClient.ListInstances(ctx)
+		if err != nil {
+			slog.Error("failed to refresh incus instances", "err", err)
+			vms = []incus.Instance{}
 		}
 	}
 
@@ -137,6 +170,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, hub *ws.Hub) {
 		"pools":      pools,
 		"datasets":   datasets,
 		"containers": containers,
+		"vms":        vms,
 	})
 	if err != nil {
 		slog.Error("failed to marshal state payload", "err", err)

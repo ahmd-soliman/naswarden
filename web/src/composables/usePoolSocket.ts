@@ -106,6 +106,30 @@ export interface ServerInfo {
   cpu_temp_c: number
 }
 
+export interface VM {
+  name: string
+  type: string // "virtual-machine" | "container"
+  status: string // "Running" | "Stopped" | ...
+  status_code: number
+  is_vm: boolean
+  os: string
+  kernel: string
+  arch: string
+  cpu_cores: number
+  cpu_percent: number
+  mem_used: number
+  mem_total: number
+  disk_used: number
+  disk_total: number
+  disk_pool: string
+  ipv4: string[]
+  mac: string
+  bridge: string
+  started_at: string
+  auto_start: boolean
+  config: Record<string, string>
+}
+
 interface StateMessage {
   type: 'state'
   updated_at?: number // unix seconds the backend took this snapshot
@@ -113,6 +137,7 @@ interface StateMessage {
   pools: Pool[]
   datasets: Dataset[]
   containers: Container[] | null
+  vms: VM[] | null
 }
 
 // Connects to naswarden's /ws endpoint and keeps `pools`/`datasets`
@@ -125,6 +150,7 @@ export function usePoolSocket() {
   const pools = ref<Pool[]>([])
   const datasets = ref<Dataset[]>([])
   const containers = ref<Container[]>([])
+  const vms = ref<VM[]>([])
   const connected = ref(false)
   const updatedAt = ref<number | null>(null)
 
@@ -147,6 +173,7 @@ export function usePoolSocket() {
         pools.value = msg.pools
         datasets.value = msg.datasets
         containers.value = msg.containers ?? []
+        vms.value = msg.vms ?? []
         updatedAt.value = msg.updated_at ?? null
       }
     }
@@ -165,5 +192,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { server, pools, datasets, containers, connected, updatedAt }
+  return { server, pools, datasets, containers, vms, connected, updatedAt }
 }
