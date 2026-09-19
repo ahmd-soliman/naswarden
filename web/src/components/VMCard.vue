@@ -16,10 +16,37 @@ const statusBadge = computed(() => {
   return { label: props.vm.status, cls: 'badge--red' }
 })
 
+const typeBadge = computed(() => {
+  if (isTrueNAS.value) {
+    return {
+      label: 'TrueNAS · KVM',
+      cls: 'vm-type-pill--truenas-kvm',
+    }
+  }
+  if (props.vm.is_vm) {
+    return {
+      label: 'Incus · KVM',
+      cls: 'vm-type-pill--incus-kvm',
+    }
+  }
+  return {
+    label: 'Incus · LXC',
+    cls: 'vm-type-pill--incus-lxc',
+  }
+})
+
 const primaryPassthrough = computed(() => {
   if (!props.vm.passthrough || props.vm.passthrough.length === 0) return null
   const gpu = props.vm.passthrough.find((p) => /geforce|radeon|vga|gtx|rtx|nvidia/i.test(p))
   return gpu || props.vm.passthrough[0]
+})
+
+const shortPassthrough = computed(() => {
+  if (!primaryPassthrough.value) return null
+  return primaryPassthrough.value
+    .replace(/NVIDIA\s+GeForce\s+/i, '')
+    .replace(/AMD\s+Radeon\s+/i, '')
+    .trim()
 })
 
 const memPercent = computed(() => {
@@ -64,11 +91,8 @@ function formatBytes(bytes: number): string {
     <div class="vm-card__header">
       <span class="vm-card__name" :title="vm.name">{{ vm.name }}</span>
       <div class="vm-card__badges">
-        <span class="vm-manager-pill" :class="isTrueNAS ? 'vm-manager-pill--truenas' : 'vm-manager-pill--incus'">
-          {{ isTrueNAS ? 'TrueNAS' : 'Incus' }}
-        </span>
-        <span class="vm-type-pill" :class="vm.is_vm ? 'vm-type-pill--kvm' : 'vm-type-pill--lxc'">
-          {{ vm.is_vm ? 'KVM VM' : 'LXC' }}
+        <span class="vm-type-pill" :class="typeBadge.cls">
+          {{ typeBadge.label }}
         </span>
         <span class="badge" :class="statusBadge.cls">
           {{ statusBadge.label }}
@@ -79,9 +103,9 @@ function formatBytes(bytes: number): string {
     <div class="vm-card__meta">
       <div class="vm-card__os-wrap">
         <span class="vm-card__os" :title="vm.os || 'Linux'">{{ vm.os || 'Linux' }}</span>
-        <span v-if="primaryPassthrough" class="vm-hw-pill" :title="primaryPassthrough">
+        <span v-if="shortPassthrough" class="vm-hw-pill" :title="primaryPassthrough || undefined">
           <svg class="hw-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 9h4M14 12h4M14 15h4"/></svg>
-          {{ primaryPassthrough }}
+          {{ shortPassthrough }}
         </span>
       </div>
       <span v-if="vm.ipv4 && vm.ipv4.length > 0" class="vm-card__ip">
@@ -186,48 +210,33 @@ function formatBytes(bytes: number): string {
   flex-shrink: 0;
 }
 
-.vm-manager-pill {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  padding: 0.12rem 0.45rem;
-  border-radius: 4px;
-  text-transform: uppercase;
-  border: 1px solid var(--border);
-}
-
-.vm-manager-pill--truenas {
-  background: rgba(168, 85, 247, 0.15);
-  color: #c084fc;
-  border-color: rgba(168, 85, 247, 0.35);
-}
-
-.vm-manager-pill--incus {
-  background: rgba(20, 184, 166, 0.15);
-  color: #2dd4bf;
-  border-color: rgba(20, 184, 166, 0.35);
-}
-
 .vm-type-pill {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.03em;
-  padding: 0.12rem 0.45rem;
+  padding: 0.12rem 0.48rem;
   border-radius: 4px;
   text-transform: uppercase;
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
-.vm-type-pill--kvm {
-  background: rgba(6, 182, 212, 0.15);
+.vm-type-pill--truenas-kvm {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+.vm-type-pill--incus-kvm {
+  background: rgba(6, 182, 212, 0.12);
   color: #22d3ee;
-  border-color: rgba(6, 182, 212, 0.35);
+  border-color: rgba(6, 182, 212, 0.3);
 }
 
-.vm-type-pill--lxc {
-  background: rgba(107, 114, 128, 0.15);
+.vm-type-pill--incus-lxc {
+  background: rgba(107, 114, 128, 0.12);
   color: #cbd5e1;
-  border-color: rgba(107, 114, 128, 0.3);
+  border-color: rgba(107, 114, 128, 0.28);
 }
 
 .vm-card__meta {
