@@ -62,7 +62,7 @@ function formatBytes(bytes: number): string {
   --accent: var(--dataset);
   border-top: 3px solid var(--accent);
   border-radius: 10px;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

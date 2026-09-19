@@ -94,7 +94,7 @@ function formatRelativeTime(ts: number): string {
   --accent: var(--pool);
   border-top: 3px solid var(--accent);
   border-radius: 10px;
-  padding: 1.25rem;
+  padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
