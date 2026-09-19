@@ -5,7 +5,14 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /naswarden ./cmd/naswarden
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+RUN CGO_ENABLED=0 go build -trimpath \
+      -ldflags "-X github.com/ahmd-soliman/naswarden/internal/buildinfo.Version=${VERSION} \
+                -X github.com/ahmd-soliman/naswarden/internal/buildinfo.Commit=${COMMIT} \
+                -X github.com/ahmd-soliman/naswarden/internal/buildinfo.Date=${BUILD_DATE}" \
+      -o /naswarden ./cmd/naswarden
 
 # Plain alpine, not distroless -- keeping curl/wget available so this
 # image supports the usual Docker/Compose `healthcheck: CMD curl ...`

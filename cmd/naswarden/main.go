@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/ahmd-soliman/naswarden/internal/buildinfo"
 	"github.com/ahmd-soliman/naswarden/internal/docker"
 	"github.com/ahmd-soliman/naswarden/internal/incus"
 	"github.com/ahmd-soliman/naswarden/internal/metrics"
@@ -23,6 +24,9 @@ import (
 const refreshInterval = 60 * time.Second
 
 func main() {
+	buildinfo.Register()
+	slog.Info("naswarden starting", "version", buildinfo.Version, "commit", buildinfo.Commit)
+
 	host := os.Getenv("TRUENAS_HOST")
 	apiKey := os.Getenv("TRUENAS_API_KEY")
 	if host == "" || apiKey == "" {
@@ -100,6 +104,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeHTTP)
 	mux.Handle("/healthz", health)
+	mux.Handle("/version", buildinfo.Handler())
 	mux.Handle("/", uiHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 
