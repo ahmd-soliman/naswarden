@@ -15,14 +15,15 @@ import DatasetDetails from './components/DatasetDetails.vue'
 import VMDetails from './components/VMDetails.vue'
 import ContainerDetails from './components/ContainerDetails.vue'
 import StackDetails from './components/StackDetails.vue'
+import AlertsDetails from './components/AlertsDetails.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
-import type { Container, Dataset, Pool, ServerInfo, VM } from './composables/usePoolSocket'
+import type { Alert, Container, Dataset, Pool, ServerInfo, VM } from './composables/usePoolSocket'
 import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
 import { vmIconCandidates } from './composables/useVMs'
 import { matchesContainer, matchesDataset, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
-const { server, pools, datasets, containers, vms, connected, updatedAt, staleSources } = usePoolSocket()
+const { server, pools, datasets, containers, vms, alerts, replications, connected, updatedAt, staleSources } = usePoolSocket()
 
 // Data freshness. The backend refreshes every 60s; if it stops getting data
 // (TrueNAS unreachable, refresh failing) it broadcasts nothing, so a browser
@@ -216,6 +217,7 @@ type Selected =
   // fromStack: opened by drilling down from that stack's drawer, so the
   // drawer offers a way back to it
   | { kind: 'container'; data: Container; fromStack?: string }
+  | { kind: 'alerts'; data: Alert[] }
 
 type SelectionTarget =
   | { kind: 'server' }
@@ -224,12 +226,13 @@ type SelectionTarget =
   | { kind: 'vm'; name: string }
   | { kind: 'stack'; name: string }
   | { kind: 'container'; name: string; fromStack?: string }
+  | { kind: 'alerts' }
 
 const selectedTarget = ref<SelectionTarget | null>(null)
 
 type SelectedData = Selected['data']
 
-const targetKey = (t: SelectionTarget) => (t.kind === 'server' ? 'server' : `${t.kind}:${t.name}`)
+const targetKey = (t: SelectionTarget) => ('name' in t ? `${t.kind}:${t.name}` : t.kind)
 
 function findLive(t: SelectionTarget): SelectedData | undefined {
   switch (t.kind) {
@@ -245,6 +248,8 @@ function findLive(t: SelectionTarget): SelectedData | undefined {
       return stacks.value.find((s) => s.name === t.name)
     case 'container':
       return containers.value.find((c) => c.name === t.name)
+    case 'alerts':
+      return activeAlerts.value
   }
 }
 
@@ -279,7 +284,9 @@ const selected = computed<Selected | null>(() => {
 
 const drawerTitle = computed(() => {
   if (!selected.value) return ''
-  return selected.value.kind === 'server' ? selected.value.data.hostname : selected.value.data.name
+  if (selected.value.kind === 'server') return selected.value.data.hostname
+  if (selected.value.kind === 'alerts') return 'System Alerts'
+  return selected.value.data.name
 })
 const drawerBack = computed(() =>
   selectedTarget.value?.kind === 'container' ? selectedTarget.value.fromStack : undefined,
@@ -291,11 +298,31 @@ function openStack(name: string) {
 function openContainer(name: string, fromStack?: string) {
   selectedTarget.value = { kind: 'container', name, fromStack }
 }
+function openAlerts() {
+  selectedTarget.value = { kind: 'alerts' }
+}
 // The stack card stays highlighted while one of its containers is open in the drawer.
 function stackActive(name: string) {
   const t = selectedTarget.value
   return (t?.kind === 'stack' && t.name === name) || (t?.kind === 'container' && t.fromStack === name)
 }
+
+const activeAlerts = computed(() => alerts.value.filter((a) => !a.dismissed))
+const topAlertLevel = computed<'critical' | 'warning' | 'info' | null>(() => {
+  if (activeAlerts.value.some((a) => a.level === 'CRITICAL' || a.level === 'ERROR')) return 'critical'
+  if (activeAlerts.value.some((a) => a.level === 'WARNING')) return 'warning'
+  if (activeAlerts.value.length > 0) return 'info'
+  return null
+})
+const alertPillLabel = computed(() => {
+  const count = activeAlerts.value.length
+  if (count === 0) return ''
+  const critCount = activeAlerts.value.filter((a) => a.level === 'CRITICAL' || a.level === 'ERROR').length
+  if (critCount > 0) return `${critCount} critical`
+  const warnCount = activeAlerts.value.filter((a) => a.level === 'WARNING').length
+  if (warnCount > 0) return `${warnCount} ${warnCount === 1 ? 'warning' : 'warnings'}`
+  return `${count} ${count === 1 ? 'notice' : 'notices'}`
+})
 </script>
 
 <template>
@@ -306,12 +333,35 @@ function stackActive(name: string) {
         <h1>NasWarden</h1>
       </div>
       <SearchBox v-model="query" class="app__search" />
-      <div class="conn-group">
-        <span class="conn__age">{{ ageLabel }}</span>
-        <!-- only the state is announced to screen readers, not the ticking age -->
-        <span class="conn" :class="{ 'conn--live': connected && !isStale && !isPartial, 'conn--stale': isStale || isPartial }" role="status">
-          {{ connLabel }}
-        </span>
+      <div class="topbar-actions">
+        <button
+          v-if="activeAlerts.length > 0"
+          class="alert-pill"
+          :class="`alert-pill--${topAlertLevel}`"
+          type="button"
+          aria-label="View system alerts"
+          @click="openAlerts"
+        >
+          <svg class="alert-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <template v-if="topAlertLevel === 'critical' || topAlertLevel === 'warning'">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <path d="M12 9v4M12 17h.01" />
+            </template>
+            <template v-else>
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4M12 8h.01" />
+            </template>
+          </svg>
+          <span>{{ alertPillLabel }}</span>
+        </button>
+
+        <div class="conn-group">
+          <span class="conn__age">{{ ageLabel }}</span>
+          <!-- only the state is announced to screen readers, not the ticking age -->
+          <span class="conn" :class="{ 'conn--live': connected && !isStale && !isPartial, 'conn--stale': isStale || isPartial }" role="status">
+            {{ connLabel }}
+          </span>
+        </div>
       </div>
     </header>
 
@@ -417,6 +467,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
               v-for="pool in filteredPools"
               :key="pool.name"
               :pool="pool"
+              :replications="replications"
               :active="selectedTarget?.kind === 'pool' && selectedTarget.name === pool.name"
               @select="selectedTarget = { kind: 'pool', name: pool.name }"
             />
@@ -497,7 +548,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
         <AppIcon :candidates="containerIconCandidates(selected.data)" :size="22" />
       </template>
       <ServerDetails v-if="selected?.kind === 'server'" :server="selected.data" />
-      <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" />
+      <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" :replications="replications" />
       <DatasetDetails v-else-if="selected?.kind === 'dataset'" :dataset="selected.data" />
       <VMDetails v-else-if="selected?.kind === 'vm'" :vm="selected.data" />
       <StackDetails
@@ -509,6 +560,10 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
         v-else-if="selected?.kind === 'container'"
         :container="selected.data"
         @open-stack="openStack"
+      />
+      <AlertsDetails
+        v-else-if="selected?.kind === 'alerts'"
+        :alerts="selected.data"
       />
     </DetailDrawer>
   </div>
@@ -549,6 +604,61 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 
 .app__search {
   margin: 0 1rem;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.alert-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+  border: 1px solid transparent;
+}
+
+.alert-pill__icon {
+  width: 14px;
+  height: 14px;
+}
+
+.alert-pill--critical {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--crit-t);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.alert-pill--critical:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.alert-pill--warning {
+  background: rgba(234, 179, 8, 0.15);
+  color: var(--warn-t);
+  border-color: rgba(234, 179, 8, 0.35);
+}
+
+.alert-pill--warning:hover {
+  background: rgba(234, 179, 8, 0.25);
+}
+
+.alert-pill--info {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--info-t);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.alert-pill--info:hover {
+  background: rgba(59, 130, 246, 0.25);
 }
 
 .conn-group {
