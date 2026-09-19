@@ -166,6 +166,17 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 			Image:  s.Image,
 			State:  s.State,
 			Status: s.Status,
+			// Explicitly non-nil -- a Go nil slice marshals to JSON `null`,
+			// not `[]`, and the frontend calls .length/.map on these
+			// unconditionally (every container has these fields, empty or
+			// not). Confirmed this broke the detail drawer for real: a
+			// container with zero published ports (e.g. komodo-periphery)
+			// serialized `"ports": null`, and Vue threw
+			// "Cannot read properties of null (reading 'length')",
+			// silently leaving the entire drawer body blank.
+			Mounts:   []Mount{},
+			Networks: []NetworkIP{},
+			Ports:    []string{},
 		}
 
 		wg.Add(1)
