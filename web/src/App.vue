@@ -6,6 +6,7 @@ import DatasetCard from './components/DatasetCard.vue'
 import ContainerCard from './components/ContainerCard.vue'
 import StackCard from './components/StackCard.vue'
 import AppIcon from './components/AppIcon.vue'
+import SearchBox from './components/SearchBox.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import ServerDetails from './components/ServerDetails.vue'
 import PoolDetails from './components/PoolDetails.vue'
@@ -16,6 +17,7 @@ import { usePoolSocket } from './composables/usePoolSocket'
 import type { Container, Dataset, Pool, ServerInfo } from './composables/usePoolSocket'
 import { buildStacks, iconCandidates, isStopped } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
+import { matchesContainer, matchesDataset, matchesPool, matchesStack, normalizeQuery } from './composables/search'
 
 const { server, pools, datasets, containers, connected, updatedAt } = usePoolSocket()
 
@@ -67,6 +69,7 @@ const sortedContainers = computed(() =>
 
 const hasContainers = computed(() => liveContainers.value.length > 0)
 
+
 // 'all' shows every section at once (the default, glanceable overview);
 // picking a rail item filters down to just that section. Filtering never
 // hides data the "All" view wouldn't already show -- it's a convenience,
@@ -77,6 +80,52 @@ function selectSection(name: typeof activeSection.value) {
   activeSection.value = name
   scrollSection.value = name === 'all' ? scrollSection.value : name
 }
+
+// ---- search ------------------------------------------------------------
+// One box filters every list at once by name (stacks also by member name,
+// containers also by stack and image). It applies within whichever sections
+// the rail currently shows, and hides a section that has no match.
+const query = ref('')
+const q = computed(() => normalizeQuery(query.value))
+const filteredPools = computed(() => pools.value.filter((p) => matchesPool(p, q.value)))
+const filteredDatasets = computed(() => sortedDatasets.value.filter((d) => matchesDataset(d, q.value)))
+const filteredStacks = computed(() => stacks.value.filter((s) => matchesStack(s, q.value)))
+const filteredContainers = computed(() => sortedContainers.value.filter((c) => matchesContainer(c, q.value)))
+
+type Searchable = 'pools' | 'datasets' | 'stacks' | 'containers'
+const matchCount = computed<Record<Searchable, number>>(() => ({
+  pools: filteredPools.value.length,
+  datasets: filteredDatasets.value.length,
+  stacks: filteredStacks.value.length,
+  containers: filteredContainers.value.length,
+}))
+
+// Would this section be shown if the query matched something in it? Containers
+// is normally tab-only (Stacks is the landing view) but is revealed while
+// searching so a container is findable without knowing its stack.
+function inScope(name: Searchable) {
+  if (name === 'containers') return activeSection.value === 'containers' || (activeSection.value === 'all' && !!q.value)
+  return activeSection.value === 'all' || activeSection.value === name
+}
+function sectionVisible(name: Searchable) {
+  return inScope(name) && (!q.value || matchCount.value[name] > 0)
+}
+const resultCount = computed(() =>
+  (['pools', 'datasets', 'stacks', 'containers'] as Searchable[])
+    .filter(inScope)
+    .reduce((sum, name) => sum + matchCount.value[name], 0),
+)
+
+// Screen-reader announcement, debounced so it does not chatter per keystroke.
+const announcement = ref('')
+let announceTimer: ReturnType<typeof setTimeout> | undefined
+watch([q, resultCount], () => {
+  clearTimeout(announceTimer)
+  announceTimer = setTimeout(() => {
+    announcement.value = q.value ? `${resultCount.value} ${resultCount.value === 1 ? 'result' : 'results'}` : ''
+  }, 300)
+})
+onBeforeUnmount(() => clearTimeout(announceTimer))
 
 // While in "All" mode, track which section is currently scrolled into
 // view and highlight the matching rail item -- without hiding any other
@@ -157,6 +206,7 @@ function stackActive(name: string) {
         <img src="/favicon.svg" alt="" class="app__logo" />
         <h1>naswarden</h1>
       </div>
+      <SearchBox v-model="query" class="app__search" />
       <div class="conn-group">
         <span class="conn__age">{{ ageLabel }}</span>
         <!-- only the state is announced to screen readers, not the ticking age -->
@@ -223,6 +273,9 @@ function stackActive(name: string) {
       </nav>
 
       <main class="app__content">
+        <p v-if="q && resultCount === 0" class="empty">No matches for “{{ query.trim() }}”.</p>
+        <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
+
         <section v-if="server" data-section="server" v-show="activeSection === 'all' || activeSection === 'server'">
           <h2>Server</h2>
           <ServerCard
@@ -232,11 +285,11 @@ function stackActive(name: string) {
           />
         </section>
 
-        <section data-section="pools" v-show="activeSection === 'all' || activeSection === 'pools'">
+        <section data-section="pools" v-show="sectionVisible('pools')">
           <h2>Pools</h2>
           <div class="grid">
             <PoolCard
-              v-for="pool in pools"
+              v-for="pool in filteredPools"
               :key="pool.name"
               :pool="pool"
               :active="selected?.kind === 'pool' && selected.data.name === pool.name"
@@ -246,11 +299,11 @@ function stackActive(name: string) {
           </div>
         </section>
 
-        <section data-section="datasets" v-show="activeSection === 'all' || activeSection === 'datasets'">
+        <section data-section="datasets" v-show="sectionVisible('datasets')">
           <h2>Dataset quotas</h2>
           <div class="grid grid--datasets">
             <DatasetCard
-              v-for="dataset in sortedDatasets"
+              v-for="dataset in filteredDatasets"
               :key="dataset.name"
               :dataset="dataset"
               :active="selected?.kind === 'dataset' && selected.data.name === dataset.name"
@@ -260,11 +313,11 @@ function stackActive(name: string) {
           </div>
         </section>
 
-        <section v-if="hasStacks" data-section="stacks" v-show="activeSection === 'all' || activeSection === 'stacks'">
+        <section v-if="hasStacks" data-section="stacks" v-show="sectionVisible('stacks')">
           <h2>Stacks</h2>
           <div class="grid">
             <StackCard
-              v-for="stack in stacks"
+              v-for="stack in filteredStacks"
               :key="stack.name"
               :stack="stack"
               :active="stackActive(stack.name)"
@@ -274,11 +327,11 @@ function stackActive(name: string) {
         </section>
 
         <!-- Stacks is the default landing view, so the flat list lives on its own tab -->
-        <section v-if="hasContainers" data-section="containers" v-show="activeSection === 'containers'">
+        <section v-if="hasContainers" data-section="containers" v-show="sectionVisible('containers')">
           <h2>Containers</h2>
           <div class="grid grid--datasets">
             <ContainerCard
-              v-for="container in sortedContainers"
+              v-for="container in filteredContainers"
               :key="container.name"
               :container="container"
               :active="selected?.kind === 'container' && selected.data.name === container.name"
@@ -347,6 +400,10 @@ function stackActive(name: string) {
   font-size: 1.5rem;
   font-family: ui-monospace, monospace;
   margin: 0;
+}
+
+.app__search {
+  margin: 0 1rem;
 }
 
 .conn-group {
@@ -481,6 +538,16 @@ section h2 {
 }
 
 @media (max-width: 700px) {
+  .app__topbar {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+  }
+  .app__search {
+    order: 3;
+    flex-basis: 100%;
+    max-width: none;
+    margin: 0;
+  }
   .app__layout {
     flex-direction: column;
   }
