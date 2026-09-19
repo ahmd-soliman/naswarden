@@ -1,0 +1,86 @@
+# Prometheus alerting rules for NasWarden. Load with:
+#   rule_files: [naswarden.rules.yml]
+# Validate with: promtool check rules deploy/prometheus/naswarden.rules.yml
+groups:
+  - name: naswarden-self
+    rules:
+      # naswarden itself lost TrueNAS: no refresh of the core data has
+      # succeeded (this is the same condition that turns /healthz into 503).
+      - alert: NaswardenRefreshStale
+        expr: time() - naswarden_last_refresh_success_timestamp_seconds > 180
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "NasWarden has not refreshed TrueNAS data for {{ $value | humanizeDuration }}"
+          description: "Server, pool and dataset data is stale. Check TrueNAS reachability and the API key."
+
+      # An optional source (docker proxy, Incus, VM/alert/replication query)
+      # keeps failing; NasWarden is showing its previous snapshot.
+      - alert: NaswardenSourceStale
+        expr: naswarden_source_stale == 1
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "NasWarden source {{ $labels.source }} is not updating"
+          description: "The last refresh of {{ $labels.source }} failed; its cards and metrics show the previous snapshot."
+
+      - alert: NaswardenDown
+        expr: up{job=~".*naswarden.*"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "NasWarden is not being scraped"
+
+  - name: naswarden-truenas
+    rules:
+      - alert: TrueNASCriticalAlert
+        expr: naswarden_truenas_alert_count{level=~"CRITICAL|ERROR|ALERT|EMERGENCY"} > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $value }} active TrueNAS {{ $labels.level }} alert(s)"
+
+      - alert: TrueNASWarningAlert
+        expr: naswarden_truenas_alert_count{level="WARNING"} > 0
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value }} TrueNAS warning(s) unresolved for over an hour"
+
+      - alert: ZFSPoolDegraded
+        expr: naswarden_pool_healthy == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Pool {{ $labels.pool }} is not healthy"
+
+      - alert: DiskHot
+        expr: naswarden_disk_temperature_celsius > 55
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "Disk {{ $labels.disk }} ({{ $labels.pool }}) at {{ $value }}C"
+
+      - alert: DiskVeryHot
+        expr: naswarden_disk_temperature_celsius > 60
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Disk {{ $labels.disk }} ({{ $labels.pool }}) at {{ $value }}C"
+
+  - name: naswarden-replication
+    rules:
+      - alert: ReplicationFailed
+        expr: naswarden_replication_task_status{state=~"ERROR|FAILED|ABORTED"} == 1 or naswarden_replication_task_status{job_state=~"FAILED|ABORTED"} == 1
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "Replication task {{ $labels.name }} -> {{ $labels.target_pool }} failed"
+
+      # Nightly tasks: no successful run for over a day plus slack.
+      - alert: ReplicationNotSucceeding
+        expr: time() - naswarden_replication_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Replication task {{ $labels.name }} has not succeeded for {{ $value | humanizeDuration }}"

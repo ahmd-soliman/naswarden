@@ -249,6 +249,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	}
 	hub.Broadcast(payload)
 	health.markOK()
+	metrics.UpdateRefresh(time.Now(), stale)
 }
 
 // lastGood holds the previous successful result of each optional source.
