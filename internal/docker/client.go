@@ -161,7 +161,7 @@ type statsResponse struct {
 // Stats are fetched CONCURRENTLY, not in a loop -- confirmed directly
 // against the real Docker Engine API that a single non-streaming stats
 // call takes ~1 second (Docker samples cgroup counters twice internally
-// to compute the CPU delta). A large host easily has 50+
+// to compute the CPU delta). A typical host easily has 50+
 // containers; fetching sequentially took 50+ seconds against a single
 // refresh cycle's budget, silently timing out partway through and
 // leaving most containers zeroed with the error swallowed. Caught this
@@ -204,7 +204,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 			// not `[]`, and the frontend calls .length/.map on these
 			// unconditionally (every container has these fields, empty or
 			// not). Confirmed this broke the detail drawer for real: a
-			// container with zero published ports (e.g. komodo-periphery)
+			// container with zero published ports
 			// serialized `"ports": null`, and Vue threw
 			// "Cannot read properties of null (reading 'length')",
 			// silently leaving the entire drawer body blank.

@@ -31,7 +31,7 @@ type Scan struct {
 // Vdev is one top-level vdev group (mirror-0, raidz1-0, a bare disk, ...)
 // and its member disks -- this is pool.query's `topology.data` entries,
 // not the cache/log/spare groups (not useful for an at-a-glance layout
-// view, and most systems don't have them).
+// view, and most pools don't have them).
 type Vdev struct {
 	Name     string      `json:"name"` // e.g. "mirror-0", "raidz1-0"
 	Type     string      `json:"type"` // MIRROR / RAIDZ1 / DISK / ...

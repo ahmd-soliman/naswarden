@@ -112,7 +112,7 @@ const filteredConfig = computed(() => {
     </div>
     <div v-if="vm.disk_total > 0" class="drawer__kv">
       <span>Root Storage zvol</span>
-      <span>{{ formatBytes(vm.disk_used) }} / {{ formatBytes(vm.disk_total) }} (pool: {{ vm.disk_pool || 'fast' }})</span>
+      <span>{{ formatBytes(vm.disk_used) }} / {{ formatBytes(vm.disk_total) }} (pool: {{ vm.disk_pool || 'unknown' }})</span>
     </div>
   </div>
 
