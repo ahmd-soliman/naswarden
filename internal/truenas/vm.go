@@ -137,7 +137,7 @@ func ListVMs(ctx context.Context, c *Client) ([]vm.Instance, error) {
 			inst.Status = "Stopped"
 			inst.StatusCode = 102
 			if raw.Status.State != "" {
-				inst.Status = strings.Title(strings.ToLower(raw.Status.State))
+				inst.Status = titleCase(raw.Status.State)
 			}
 		}
 
@@ -351,4 +351,14 @@ func detectOS(vmName string, cdromPaths []string, description string) string {
 	default:
 		return "Guest OS"
 	}
+}
+
+// titleCase turns "PAUSED_BY_HOST" style state names into "Paused_by_host"
+// (first letter upper, rest lower) for display.
+func titleCase(s string) string {
+	s = strings.ToLower(s)
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
