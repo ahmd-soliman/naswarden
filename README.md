@@ -72,7 +72,7 @@ NasWarden needs one credential (a TrueNAS API key) and can use two optional ones
 ### 1. TrueNAS API key (required)
 
 1. **Credentials → Users → Add.** Give it a name such as `naswarden`, set **Roles** to **Readonly Admin**, and leave shell access and sudo off. You never log in as this user.
-2. **Credentials → API Keys → Add.** Name it `naswarden`, pick that user in **Username**, choose an expiry (or non-expiring), and save.
+2. **Credentials → Users → API Keys → Add** (TrueNAS 25.x; you can also open it from the user menu at the top right, **My API Keys**). Name it `naswarden`, pick that user in **Username**, choose an expiry (or non-expiring), and save.
 3. **Copy the key when it is shown.** TrueNAS shows it once. Put it in `TRUENAS_API_KEY`.
 4. Set `TRUENAS_HOST` to the address of the TrueNAS web interface, `host:port`, for example `truenas.local:443`. Set `TRUENAS_TLS=true`, and `TRUENAS_INSECURE_TLS=true` only if TrueNAS uses its self-signed certificate.
 
@@ -184,7 +184,7 @@ All configuration is provided via environment variables:
 | Env Var | Required | Default | Description |
 |---|---|---|---|
 | `TRUENAS_HOST` | **Yes** | — | TrueNAS host and port, e.g. `truenas.local:8443` |
-| `TRUENAS_API_KEY` | **Yes** | — | API key generated in TrueNAS (Credentials → API Keys) |
+| `TRUENAS_API_KEY` | **Yes** | — | API key generated in TrueNAS (Credentials → Users → API Keys, 25.x); see [Setup](#setup) |
 | `TRUENAS_TLS` | No | `false` | Set `true` to connect over `wss://` |
 | `TRUENAS_INSECURE_TLS` | No | `false` | Set `true` to skip certificate validation (e.g. self-signed TrueNAS certs) |
 | `DOCKER_PROXY_URL` | No | — | URL to read-only Docker socket proxy, e.g. `http://docker-proxy:2375` |
