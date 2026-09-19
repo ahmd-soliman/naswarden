@@ -29,9 +29,14 @@ function formatBytes(bytes: number): string {
     <div class="drawer__kv">
       <span>Containers</span>
       <span>
-        {{ stack.running }} of {{ stack.total }} running<template v-if="cleanStops > 0">
-          &middot; {{ cleanStops }} stopped cleanly</template
-        >
+        <template v-if="stack.health === 'gray'">
+          All {{ stack.members.length }} stopped<template v-if="cleanStops > 0"> ({{ cleanStops }} cleanly)</template>
+        </template>
+        <template v-else>
+          {{ stack.running }} of {{ stack.total }} running<template v-if="cleanStops > 0">
+            &middot; {{ cleanStops }} stopped cleanly</template
+          >
+        </template>
       </span>
     </div>
     <div class="drawer__kv"><span>CPU (total)</span><span>{{ stack.cpu.toFixed(1) }}%</span></div>

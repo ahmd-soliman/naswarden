@@ -77,6 +77,8 @@ export interface Container {
   compose_file: string
   icon: string // optional `naswarden.icon` label override
   exit_code: number // last exit code, meaningful once stopped
+  oom_killed?: boolean // true if terminated by kernel OOM killer
+  optional?: boolean // true if labeled naswarden.ignore or naswarden.optional
 }
 
 export interface Interface {

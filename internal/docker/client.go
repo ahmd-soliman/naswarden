@@ -44,7 +44,9 @@ const (
 	projectLabel = "com.docker.compose.project"
 	configLabel  = "com.docker.compose.project.config_files"
 	oneoffLabel  = "com.docker.compose.oneoff" // "True" for `docker compose run` containers
-	iconLabel    = "naswarden.icon"            // optional: icon slug override, set on any service
+	iconLabel     = "naswarden.icon"            // optional: icon slug override, set on any service
+	ignoreLabel   = "naswarden.ignore"          // optional: "true" to exclude from stack health count
+	optionalLabel = "naswarden.optional"        // optional: "true" to exclude from stack health count
 )
 
 // Container is one running/stopped container with its current resource
@@ -68,6 +70,8 @@ type Container struct {
 	ComposeFile   string      `json:"compose_file"` // compose file(s) that define it
 	Icon          string      `json:"icon"`         // optional `naswarden.icon` label
 	ExitCode      int         `json:"exit_code"`    // last exit code; meaningful once stopped
+	OOMKilled     bool        `json:"oom_killed"`   // whether kernel OOM killer terminated the container
+	Optional      bool        `json:"optional"`     // true if labeled naswarden.ignore or naswarden.optional
 }
 
 // Mount is one bind mount or named volume attached to a container --
@@ -113,6 +117,7 @@ type inspectResponse struct {
 	State struct {
 		StartedAt string `json:"StartedAt"`
 		ExitCode  int    `json:"ExitCode"`
+		OOMKilled bool   `json:"OOMKilled"`
 	} `json:"State"`
 	NetworkSettings struct {
 		Networks map[string]struct {
@@ -194,6 +199,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 			Stack:       s.Labels[projectLabel],
 			ComposeFile: s.Labels[configLabel],
 			Icon:        s.Labels[iconLabel],
+			Optional:    s.Labels[ignoreLabel] == "true" || s.Labels[optionalLabel] == "true",
 			// Explicitly non-nil -- a Go nil slice marshals to JSON `null`,
 			// not `[]`, and the frontend calls .length/.map on these
 			// unconditionally (every container has these fields, empty or
@@ -258,6 +264,7 @@ func IsStopped(state string) bool {
 func applyInspect(c *Container, insp inspectResponse) {
 	c.StartedAt = insp.State.StartedAt
 	c.ExitCode = insp.State.ExitCode
+	c.OOMKilled = insp.State.OOMKilled
 	c.RestartPolicy = insp.HostConfig.RestartPolicy.Name
 
 	cmd := insp.Config.Entrypoint
