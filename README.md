@@ -47,16 +47,16 @@ NasWarden monitors dataset quota utilization in real time, and expands into a un
 
 ## Zero-Mutation Read-Only Architecture
 
-`naswarden` is strictly a read-only telemetry dashboard. It cannot mutate the host, start/stop containers, or alter datasets:
+**NasWarden** is strictly a read-only telemetry dashboard. It cannot mutate the host, start/stop containers, or alter datasets:
 - **TrueNAS API**: Connects over WebSocket (`wss://`) using a scoped API key, performing only read queries (`pool.query`, `pool.dataset.query`, `vm.query`, `system.info`).
-- **Docker Isolation**: Never mounts `/var/run/docker.sock` directly into `naswarden`. It communicates over HTTP with a read-only [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy) container scoped strictly to `CONTAINERS=1` (all mutating POST, PUT, and DELETE calls are blocked at the network proxy).
+- **Docker Isolation**: Never mounts `/var/run/docker.sock` directly into NasWarden. It communicates over HTTP with a read-only [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy) container scoped strictly to `CONTAINERS=1` (all mutating POST, PUT, and DELETE calls are blocked at the network proxy).
 - **Incus API**: Communicates via mTLS REST API (`GET /1.0/instances?recursion=2`).
 
 ---
 
 ## Prometheus Metrics & PromQL Alerts
 
-`naswarden` exposes Prometheus gauges at `/metrics` for integration with Prometheus, Alertmanager, or Grafana:
+NasWarden exposes Prometheus gauges at `/metrics` for integration with Prometheus, Alertmanager, or Grafana:
 
 | Metric | Type | Description |
 |---|---|---|
