@@ -72,7 +72,7 @@ NasWarden needs one credential (a TrueNAS API key) and can use two optional ones
 ### 1. TrueNAS API key (required)
 
 1. **Credentials → Users → Add.** Give it a name such as `naswarden`, set **Roles** to **Readonly Admin**, and leave shell access and sudo off. You never log in as this user.
-2. **Credentials → Users → API Keys → Add** (TrueNAS 25.x; you can also open it from the user menu at the top right, **My API Keys**). Name it `naswarden`, pick that user in **Username**, choose an expiry (or non-expiring), and save.
+2. **Credentials → Users**, open that user, then **Access → API Keys → Add API Key** (TrueNAS 25.x). Name it `naswarden`, check that **Username** is that user, choose an expiry (or non-expiring), and save.
 3. **Copy the key when it is shown.** TrueNAS shows it once. Put it in `TRUENAS_API_KEY`.
 4. Set `TRUENAS_HOST` to the address of the TrueNAS web interface, `host:port`, for example `truenas.local:443`. Set `TRUENAS_TLS=true`, and `TRUENAS_INSECURE_TLS=true` only if TrueNAS uses its self-signed certificate.
 
@@ -105,7 +105,7 @@ NasWarden only sends `GET /1.0/instances?recursion=2`, but with Incus 6.0 a trus
 
 ## Security notes
 
-- **Use a read-only API key.** A TrueNAS API key has the rights of the user it belongs to. NasWarden only reads, but a key from an administrator account could change anything if it leaked. Create a dedicated user (Credentials → Users → Add) with the **Readonly Admin** role, then add the key for that user (Credentials → Users → API Keys → Add, and pick that user in the Username field). That role covers every call NasWarden makes.
+- **Use a read-only API key.** A TrueNAS API key has the rights of the user it belongs to. NasWarden only reads, but a key from an administrator account could change anything if it leaked. Create a dedicated user (Credentials → Users → Add) with the **Readonly Admin** role, then add the key for that user (on that user's Access → API Keys → Add API Key). That role covers every call NasWarden makes.
 - **The dashboard has no login.** Anyone who can reach the port sees your pools, disks and containers. Keep it on your LAN, or put it behind an authenticating reverse proxy or access gateway. Do not expose it to the internet as is.
 - **Docker access is limited, not zero.** The socket proxy only allows listing and inspecting containers. An inspect response includes each container's environment variables; NasWarden does not read or show them, but the proxy would return them to a compromised NasWarden. Leave `DOCKER_PROXY_URL` unset if you do not want Docker in the dashboard.
 - **Incus certificates are not read-only** (Incus 6.0). See [Setup](#3-incus-optional).
@@ -184,7 +184,7 @@ All configuration is provided via environment variables:
 | Env Var | Required | Default | Description |
 |---|---|---|---|
 | `TRUENAS_HOST` | **Yes** | — | TrueNAS host and port, e.g. `truenas.local:8443` |
-| `TRUENAS_API_KEY` | **Yes** | — | API key generated in TrueNAS (Credentials → Users → API Keys, 25.x); see [Setup](#setup) |
+| `TRUENAS_API_KEY` | **Yes** | — | API key generated in TrueNAS (Credentials → Users → the user → Access → API Keys, 25.x); see [Setup](#setup) |
 | `TRUENAS_TLS` | No | `false` | Set `true` to connect over `wss://` |
 | `TRUENAS_INSECURE_TLS` | No | `false` | Set `true` to skip certificate validation (e.g. self-signed TrueNAS certs) |
 | `DOCKER_PROXY_URL` | No | — | URL to read-only Docker socket proxy, e.g. `http://docker-proxy:2375` |
