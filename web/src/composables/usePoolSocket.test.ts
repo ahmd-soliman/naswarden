@@ -17,7 +17,9 @@ class FakeSocket {
   onclose: (() => void) | null = null
   onerror: (() => void) | null = null
   closed = false
-  constructor(public url: string) {
+  url: string
+  constructor(url: string) {
+    this.url = url
     FakeSocket.instances.push(this)
   }
   close() {
