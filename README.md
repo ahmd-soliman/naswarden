@@ -61,7 +61,7 @@ NasWarden monitors dataset quota utilization in real time, and expands into a un
 
 ## Security notes
 
-- **Use a read-only API key.** A TrueNAS API key has the rights of the user it belongs to. NasWarden only reads, but a key from an administrator account could change anything if it leaked. Create a dedicated user (Credentials → Users) in the built-in **Read-Only Administrator** group, then add the key for that user (Credentials → API Keys → Add). That role covers every call NasWarden makes.
+- **Use a read-only API key.** A TrueNAS API key has the rights of the user it belongs to. NasWarden only reads, but a key from an administrator account could change anything if it leaked. Create a dedicated user (Credentials → Users → Add) with the **Readonly Admin** role, then add the key for that user (Credentials → API Keys → Add, and pick that user in the Username field). That role covers every call NasWarden makes.
 - **The dashboard has no login.** Anyone who can reach the port sees your pools, disks and containers. Keep it on your LAN, or put it behind an authenticating reverse proxy or access gateway. Do not expose it to the internet as is.
 - **Docker access is limited, not zero.** The socket proxy only allows listing and inspecting containers. An inspect response includes each container's environment variables; NasWarden does not read or show them, but the proxy would return them to a compromised NasWarden. Leave `DOCKER_PROXY_URL` unset if you do not want Docker in the dashboard.
 - **Certificates.** `TRUENAS_INSECURE_TLS=true` skips certificate checks, which is common with TrueNAS's self-signed certificate on a trusted LAN. With a certificate your clients trust, leave it off.
