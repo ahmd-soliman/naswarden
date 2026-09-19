@@ -41,13 +41,13 @@ function formatBytes(bytes: number): string {
     @keydown.space.prevent="$emit('select')"
   >
     <div class="container-card__header">
-      <span class="container-card__name">{{ container.name }}</span>
+      <span class="container-card__name" :title="container.name">{{ container.name }}</span>
       <span class="badge" :class="isRunning ? 'badge--green' : 'badge--gray'">
         {{ container.state }}
       </span>
     </div>
 
-    <div class="container-card__image">{{ container.image }}</div>
+    <div class="container-card__image" :title="container.image">{{ container.image }}</div>
 
     <template v-if="isRunning">
       <div class="container-card__stat">
@@ -100,13 +100,12 @@ function formatBytes(bytes: number): string {
   font-size: 0.9rem;
   font-weight: 600;
   font-family: ui-monospace, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .container-card__image {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -114,7 +113,7 @@ function formatBytes(bytes: number): string {
 }
 
 .badge {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 600;
   padding: 0.15rem 0.55rem;
   border-radius: 999px;

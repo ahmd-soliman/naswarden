@@ -130,7 +130,7 @@ function formatUptime(seconds: number): string {
 }
 
 .server-card__label {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.04em;
