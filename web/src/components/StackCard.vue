@@ -85,9 +85,10 @@ function formatBytes(bytes: number): string {
 
 .stack-card__header {
   display: flex;
+  flex-wrap: wrap; /* a long badge drops below the name instead of squeezing it mid-word */
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.4rem 0.75rem;
 }
 
 .stack-card__title {
@@ -95,6 +96,7 @@ function formatBytes(bytes: number): string {
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .stack-card__name {
