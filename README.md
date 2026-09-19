@@ -25,6 +25,11 @@ NasWarden monitors dataset quota utilization in real time, and expands into a un
 - **ZFS ARC Cache Separation**: Splits ZFS Adaptive Replacement Cache (ARC) out from regular memory usage so reclaimable filesystem cache isn't mistaken for runaway application memory.
 - **Active Network Interfaces**: Live link status, connection speeds, and IP addresses.
 
+### 2b. Disks & Network
+- **Disks tab**: every physical drive with model, capacity, type, pool, current temperature with its 7-day range, live read/write rate (from ZFS counters, pool members) and ZFS error counts. Click a disk for details. Temperature turns amber at 55 °C and red at 60 °C, matching the shipped alert rules.
+- **Network**: total live throughput on the Server card, and per-interface received/sent rates (plus link utilisation for physical interfaces) in the Server panel.
+- SMART health is not shown: TrueNAS 25.10 removed SMART from its API.
+
 ### 3. Docker Compose Stacks
 - **Project Aggregation**: Automatically groups containers by their Docker Compose project (`com.docker.compose.project`), reporting aggregate CPU/memory and member health (e.g. `4/4 running`).
 - **Graceful Stops vs. Crashes**: Distinguishes intentional exits (`exit 0`, `SIGTERM 143`, `SIGKILL 137`) from abnormal crashes (error exit codes, kernel `OOMKilled`), keeping clean stops from triggering false positive health alerts.
@@ -72,7 +77,7 @@ NasWarden exposes Prometheus gauges at `/metrics` for integration with Prometheu
 | `naswarden_replication_task_status{task_id, name, target_pool, state, job_state}` | Gauge | `1` for a task's current state |
 | `naswarden_replication_last_success_timestamp_seconds{name}` | Gauge | Unix time the task last finished successfully (remembered across failed runs) |
 | `naswarden_last_refresh_success_timestamp_seconds` | Gauge | Unix time of the last successful refresh of the core TrueNAS data |
-| `naswarden_source_stale{source}` | Gauge | `1` if that source (`docker`, `truenas-vms`, `incus`, `alerts`, `replication`) failed its last refresh and its previous data is being served |
+| `naswarden_source_stale{source}` | Gauge | `1` if that source (`docker`, `truenas-vms`, `incus`, `disks`, `alerts`, `replication`) failed its last refresh and its previous data is being served |
 
 ### Alerting Rules Examples
 

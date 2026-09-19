@@ -79,6 +79,7 @@ func main() {
 	hub := ws.NewHub()
 	health := newHealth(refreshInterval * 3)
 	cache := &lastGood{}
+	diskRates := truenas.NewDiskRates()
 
 	// Refresh loop: poll TrueNAS, Docker, and Incus, push to every connected
 	// client. Decoupled from any client's own connection lifecycle or Prometheus
@@ -87,7 +88,7 @@ func main() {
 		ticker := time.NewTicker(refreshInterval)
 		defer ticker.Stop()
 		for {
-			refresh(client, dockerClient, incusClient, hub, cache, health)
+			refresh(client, dockerClient, incusClient, hub, cache, health, diskRates)
 			<-ticker.C
 		}
 	}()
@@ -124,7 +125,7 @@ func main() {
 // renders a consistent snapshot, not pools, datasets, and instances from
 // different refresh moments), and separately fed into the Prometheus
 // gauges for /metrics.
-func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *incus.Client, hub *ws.Hub, cache *lastGood, health *healthState) {
+func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *incus.Client, hub *ws.Hub, cache *lastGood, health *healthState, diskRates *truenas.DiskRates) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -196,6 +197,20 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	vm.Sort(vms)
 	metrics.UpdateInstances(vms)
 
+	// Physical disks (identity, pool, temperature range, ZFS rates): same
+	// last-good rule as the other optional sources.
+	disks := cache.disks
+	if fresh, err := truenas.ListDisks(ctx, client, diskRates); err != nil {
+		slog.Error("failed to refresh disks", "err", err)
+		stale = append(stale, "disks")
+	} else {
+		disks = fresh
+		cache.disks = fresh
+	}
+	if disks == nil {
+		disks = []truenas.Disk{}
+	}
+
 	// TrueNAS alerts and replication tasks: like the other optional
 	// sources, a failed call keeps the last good list (flagged stale)
 	// instead of blanking the UI and the metrics.
@@ -240,6 +255,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		"datasets":      datasets,
 		"containers":    containers,
 		"vms":           vms,
+		"disks":         disks,
 		"alerts":        alerts,
 		"replications":  replications,
 	})
@@ -258,6 +274,7 @@ type lastGood struct {
 	containers   []docker.Container
 	truenasVMs   []vm.Instance
 	incus        []vm.Instance
+	disks        []truenas.Disk
 	alerts       []truenas.Alert
 	replications []truenas.ReplicationTask
 }

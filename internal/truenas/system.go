@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ServerInfo is a snapshot of the TrueNAS host's own resource usage --
@@ -36,6 +37,10 @@ type ServerInfo struct {
 	// distinction is visible instead of buried inside a single number.
 	ArcBytes   int64       `json:"arc_bytes"`
 	Interfaces []Interface `json:"interfaces"`
+	// Total live throughput over PHYSICAL interfaces (a bridge would double
+	// count its member's traffic), kilobits/s.
+	NetRxKbps *float64 `json:"net_rx_kbps,omitempty"`
+	NetTxKbps *float64 `json:"net_tx_kbps,omitempty"`
 	// CPUModel/Cores/PhysicalCores come straight from system.info -- static
 	// hardware facts, not something that needs the reporting subsystem.
 	CPUModel      string  `json:"cpu_model"`
@@ -49,7 +54,13 @@ type ServerInfo struct {
 // (method name has no "network." prefix on SCALE 25.10.7, despite older
 // docs suggesting otherwise).
 type Interface struct {
-	Name      string   `json:"name"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`       // "PHYSICAL" | "BRIDGE" | "VLAN" | ...
+	SpeedMbps int    `json:"speed_mbps"` // parsed from Speed; 0 if unknown
+	// Live rate in kilobits/s (netdata's own unit), averaged over the last
+	// minute; nil when the graph has no data.
+	RxKbps    *float64 `json:"rx_kbps,omitempty"`
+	TxKbps    *float64 `json:"tx_kbps,omitempty"`
 	LinkState string   `json:"link_state"` // "LINK_STATE_UP" / "LINK_STATE_DOWN"
 	Speed     string   `json:"speed"`      // e.g. "1000Mb/s Twisted Pair"
 	Addresses []string `json:"addresses"`  // e.g. "192.0.2.10/24"
@@ -83,6 +94,7 @@ type reportingGraph struct {
 // instead.
 type rawInterface struct {
 	Name  string `json:"name"`
+	Type  string `json:"type"`
 	State struct {
 		LinkState          string `json:"link_state"`
 		ActiveMediaSubtype string `json:"active_media_subtype"`
@@ -189,14 +201,91 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 		if ri.State.LinkState != "LINK_STATE_UP" {
 			continue // down/unused interfaces are noise on an overview page
 		}
-		iface := Interface{Name: ri.Name, LinkState: ri.State.LinkState, Speed: ri.State.ActiveMediaSubtype, Addresses: []string{}}
+		iface := Interface{Name: ri.Name, Type: ri.Type, LinkState: ri.State.LinkState, Speed: ri.State.ActiveMediaSubtype, SpeedMbps: parseSpeedMbps(ri.State.ActiveMediaSubtype), Addresses: []string{}}
 		for _, a := range ri.State.Aliases {
 			iface.Addresses = append(iface.Addresses, fmt.Sprintf("%s/%d", a.Address, a.Netmask))
 		}
 		info.Interfaces = append(info.Interfaces, iface)
 	}
 
+	// Best-effort: a failure here just leaves the rates blank.
+	addInterfaceRates(ctx, c, info)
+
 	return info, nil
+}
+
+// addInterfaceRates fills in per-interface and total throughput from
+// netdata's "interface" graph (the same source as TrueNAS's own dashboard).
+func addInterfaceRates(ctx context.Context, c *Client, info *ServerInfo) {
+	if len(info.Interfaces) == 0 {
+		return
+	}
+	graphs := make([]any, 0, len(info.Interfaces))
+	for _, i := range info.Interfaces {
+		graphs = append(graphs, map[string]string{"name": "interface", "identifier": i.Name})
+	}
+	raw, err := c.Call(ctx, "reporting.netdata_get_data", []any{graphs, map[string]any{"unit": "HOUR", "page": 1}})
+	if err != nil {
+		return
+	}
+	var out []reportingGraph
+	if json.Unmarshal(raw, &out) != nil || len(out) != len(info.Interfaces) {
+		return
+	}
+	var rx, tx float64
+	var any bool
+	for i := range info.Interfaces {
+		r, t := meanTail(out[i], "received", 60), meanTail(out[i], "sent", 60)
+		info.Interfaces[i].RxKbps, info.Interfaces[i].TxKbps = r, t
+		if info.Interfaces[i].Type == "PHYSICAL" && r != nil && t != nil {
+			rx, tx, any = rx+*r, tx+*t, true
+		}
+	}
+	if any {
+		info.NetRxKbps, info.NetTxKbps = &rx, &tx
+	}
+}
+
+// parseSpeedMbps extracts the link speed from strings like
+// "1000Mb/s Twisted Pair"; 0 if there is none.
+func parseSpeedMbps(s string) int {
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			break
+		}
+		n = n*10 + int(r-'0')
+	}
+	if n == 0 || !strings.HasPrefix(strings.TrimLeft(s, "0123456789"), "Mb/s") {
+		return 0
+	}
+	return n
+}
+
+// meanTail averages the last n points of a legend column (netdata returns one
+// point per second, so 60 is "the last minute", smoothing single-second
+// spikes). nil if the column is missing or has no points.
+func meanTail(g reportingGraph, name string, n int) *float64 {
+	if len(g.Data) == 0 {
+		return nil
+	}
+	rows := g.Data
+	if len(rows) > n {
+		rows = rows[len(rows)-n:]
+	}
+	var sum float64
+	var count int
+	for _, row := range rows {
+		if v, ok := column(g.Legend, row, name); ok {
+			sum += v
+			count++
+		}
+	}
+	if count == 0 {
+		return nil
+	}
+	m := sum / float64(count)
+	return &m
 }
 
 // latestRow returns the most recent data point, or nil if there isn't one

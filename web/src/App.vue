@@ -16,20 +16,23 @@ import VMDetails from './components/VMDetails.vue'
 import ContainerDetails from './components/ContainerDetails.vue'
 import StackDetails from './components/StackDetails.vue'
 import AlertsDetails from './components/AlertsDetails.vue'
+import DiskDetails from './components/DiskDetails.vue'
+import TempRange from './components/TempRange.vue'
 import ListTable from './components/ListTable.vue'
 import type { Column } from './components/ListTable.vue'
 import ViewToggle from './components/ViewToggle.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
-import type { Alert, Container, Dataset, Pool, ServerInfo, VM } from './composables/usePoolSocket'
+import type { Alert, Container, Dataset, Disk, Pool, ServerInfo, VM } from './composables/usePoolSocket'
 import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped, memberBadge, stackBadgeLabel } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
 import { vmIconCandidates } from './composables/useVMs'
-import { formatBytes } from './composables/format'
+import { formatBytes, formatCapacity, formatRate } from './composables/format'
+import { diskBadge, diskNeedsAttention, diskTypeLabel, totalRates, zfsErrors } from './composables/useDisks'
 import { useViewMode } from './composables/useViewMode'
 import { useWide } from './composables/useWide'
-import { matchesContainer, matchesDataset, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
+import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
-const { server, pools, datasets, containers, vms, alerts, replications, connected, updatedAt, staleSources } = usePoolSocket()
+const { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources } = usePoolSocket()
 
 // Data freshness. The backend refreshes every 60s; if it stops getting data
 // (TrueNAS unreachable, refresh failing) it broadcasts nothing, so a browser
@@ -84,12 +87,13 @@ const sortedContainers = computed(() =>
 
 const hasContainers = computed(() => liveContainers.value.length > 0)
 const hasVMs = computed(() => vms.value.length > 0)
+const hasDisks = computed(() => disks.value.length > 0)
 
 // 'all' shows every section at once (the default, glanceable overview);
 // picking a rail item filters down to just that section. Filtering never
 // hides data the "All" view wouldn't already show -- it's a convenience,
 // not a different data set.
-const activeSection = ref<'all' | 'server' | 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers'>('all')
+const activeSection = ref<'all' | 'server' | 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers'>('all')
 
 function selectSection(name: typeof activeSection.value) {
   activeSection.value = name
@@ -104,14 +108,16 @@ function selectSection(name: typeof activeSection.value) {
 const query = ref('')
 const q = computed(() => normalizeQuery(query.value))
 const filteredPools = computed(() => pools.value.filter((p) => matchesPool(p, q.value)))
+const filteredDisks = computed(() => disks.value.filter((d) => matchesDisk(d, q.value)))
 const filteredDatasets = computed(() => sortedDatasets.value.filter((d) => matchesDataset(d, q.value)))
 const filteredVMs = computed(() => vms.value.filter((v) => matchesVM(v, q.value)))
 const filteredStacks = computed(() => stacks.value.filter((s) => matchesStack(s, q.value)))
 const filteredContainers = computed(() => sortedContainers.value.filter((c) => matchesContainer(c, q.value)))
 
-type Searchable = 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers'
+type Searchable = 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers'
 const matchCount = computed<Record<Searchable, number>>(() => ({
   pools: filteredPools.value.length,
+  disks: filteredDisks.value.length,
   datasets: filteredDatasets.value.length,
   vms: filteredVMs.value.length,
   stacks: filteredStacks.value.length,
@@ -129,7 +135,7 @@ function sectionVisible(name: Searchable) {
   return inScope(name) && (!q.value || matchCount.value[name] > 0)
 }
 const resultCount = computed(() =>
-  (['pools', 'datasets', 'vms', 'stacks', 'containers'] as Searchable[])
+  (['pools', 'disks', 'datasets', 'vms', 'stacks', 'containers'] as Searchable[])
     .filter(inScope)
     .reduce((sum, name) => sum + matchCount.value[name], 0),
 )
@@ -149,7 +155,7 @@ onBeforeUnmount(() => clearTimeout(announceTimer))
 // view and highlight the matching rail item -- without hiding any other
 // section. Paused while a specific section is filtered in, since every
 // other section is already hidden then.
-const scrollSection = ref<'server' | 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers'>('server')
+const scrollSection = ref<'server' | 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers'>('server')
 let observer: IntersectionObserver | null = null
 
 function initObserver() {
@@ -171,7 +177,7 @@ function initObserver() {
 onMounted(() => nextTick(initObserver))
 // Containers/VMs sections only exist in the DOM once telemetry arrives --
 // re-observe when that changes so the rail highlight tracks them too.
-watch([hasContainers, hasStacks, hasVMs], () => nextTick(initObserver))
+watch([hasContainers, hasStacks, hasVMs, hasDisks], () => nextTick(initObserver))
 onBeforeUnmount(() => observer?.disconnect())
 
 const poolAlerts = computed(() => {
@@ -194,6 +200,11 @@ const vmAlerts = computed(() => {
   return { count: crit, level: 'crit' }
 })
 
+const diskAlerts = computed(() => {
+  const bad = disks.value.filter(diskNeedsAttention)
+  return { count: bad.length, level: bad.some((d) => diskBadge(d).tone === 'crit') ? 'crit' : 'warn' }
+})
+
 const stackAlerts = computed(() => {
   const red = stacks.value.filter((s) => s.health === 'red').length
   const yellow = stacks.value.filter((s) => s.health === 'yellow').length
@@ -205,7 +216,7 @@ const containerAlerts = computed(() => {
   return { count: crit, level: 'crit' }
 })
 
-function railClass(section: 'server' | 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers') {
+function railClass(section: 'server' | 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers') {
   return {
     active: activeSection.value === section,
     'scroll-active': activeSection.value === 'all' && scrollSection.value === section,
@@ -223,6 +234,7 @@ type Selected =
   // fromStack: opened by drilling down from that stack's drawer, so the
   // drawer offers a way back to it
   | { kind: 'container'; data: Container; fromStack?: string }
+  | { kind: 'disk'; data: Disk }
   | { kind: 'alerts'; data: Alert[] }
 
 type SelectionTarget =
@@ -232,6 +244,7 @@ type SelectionTarget =
   | { kind: 'vm'; name: string }
   | { kind: 'stack'; name: string }
   | { kind: 'container'; name: string; fromStack?: string }
+  | { kind: 'disk'; name: string }
   | { kind: 'alerts' }
 
 const selectedTarget = ref<SelectionTarget | null>(null)
@@ -254,6 +267,8 @@ function findLive(t: SelectionTarget): SelectedData | undefined {
       return stacks.value.find((s) => s.name === t.name)
     case 'container':
       return containers.value.find((c) => c.name === t.name)
+    case 'disk':
+      return disks.value.find((d) => d.name === t.name)
     case 'alerts':
       return activeAlerts.value
   }
@@ -264,7 +279,7 @@ function findLive(t: SelectionTarget): SelectedData | undefined {
 // watcher rather than inside the computed below, which must stay pure.
 let lastLive: { key: string; data: SelectedData } | null = null
 watch(
-  [selectedTarget, server, pools, datasets, vms, stacks, containers],
+  [selectedTarget, server, pools, datasets, vms, disks, stacks, containers],
   () => {
     const t = selectedTarget.value
     if (!t) {
@@ -339,6 +354,31 @@ const containerColumns: Column<Container>[] = [
   { key: 'mem', label: 'Memory', value: (c) => c.mem_used, align: 'right' },
   { key: 'image', label: 'Image', value: (c) => c.image },
 ]
+const dockedOpen = computed(() => wide.value && selected.value !== null)
+const TONE_ORDER: Record<string, number> = { crit: 0, warn: 1, ok: 2, gray: 3 }
+// Model and Type give way when the detail panel is docked, so the columns that
+// matter (temperature, rates, errors, status) stay on screen without scrolling.
+const diskColumns = computed<Column<Disk>[]>(() => {
+  const cols: Column<Disk>[] = [
+    { key: 'name', label: 'Disk', value: (d) => d.name },
+    { key: 'model', label: 'Model', value: (d) => d.model },
+    { key: 'size', label: 'Size', value: (d) => d.size, align: 'right' },
+    { key: 'type', label: 'Type', value: (d) => diskTypeLabel(d) },
+    { key: 'pool', label: 'Pool', value: (d) => d.pool || '—' },
+    { key: 'temp', label: 'Temp · 7 d', value: (d) => d.temp_c ?? -1 },
+    { key: 'read', label: 'Read', value: (d) => d.read_bytes_per_sec ?? -1, align: 'right' },
+    { key: 'write', label: 'Write', value: (d) => d.write_bytes_per_sec ?? -1, align: 'right' },
+    { key: 'errors', label: 'ZFS errors', value: (d) => zfsErrors(d), align: 'right' },
+    { key: 'status', label: 'Status', value: (d) => TONE_ORDER[diskBadge(d).tone] },
+  ]
+  return dockedOpen.value ? cols.filter((c) => c.key !== 'model' && c.key !== 'type') : cols
+})
+const diskActive = (d: Disk) => selectedTarget.value?.kind === 'disk' && selectedTarget.value.name === d.name
+const hottestDisk = computed(() => Math.max(-Infinity, ...disks.value.map((d) => d.temp_c ?? -Infinity)))
+const diskErrorTotal = computed(() => disks.value.reduce((n, d) => n + zfsErrors(d), 0))
+const diskThroughput = computed(() => totalRates(disks.value))
+const diskCapacity = computed(() => disks.value.reduce((n, d) => n + d.size, 0))
+
 const containerActive = (c: Container) => selectedTarget.value?.kind === 'container' && selectedTarget.value.name === c.name
 
 const activeAlerts = computed(() => alerts.value.filter((a) => !a.dismissed))
@@ -429,6 +469,19 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
           </span>
         </button>
         <button
+          v-if="hasDisks"
+          class="rail__item rail__item--disk"
+          :class="railClass('disks')"
+          :aria-current="activeSection === 'disks' ? 'true' : undefined"
+          @click="selectSection('disks')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M12 3v4"/></svg>
+          Disks
+          <span v-if="diskAlerts.count > 0" class="rail__badge" :class="`rail__badge--${diskAlerts.level}`" :title="`${diskAlerts.count} disks need attention`">
+            {{ diskAlerts.count }}
+          </span>
+        </button>
+        <button
           class="rail__item rail__item--dataset"
           :class="railClass('datasets')"
           :aria-current="activeSection === 'datasets' ? 'true' : undefined"
@@ -507,6 +560,35 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
             />
             <p v-if="pools.length === 0" class="empty">Waiting for data…</p>
           </div>
+        </section>
+
+        <section v-if="hasDisks" v-show="sectionVisible('disks')" data-section="disks" class="section--disk">
+          <h2>Disks</h2>
+          <div class="chips">
+            <div class="chip"><span class="chip__label">Hottest</span><b :class="hottestDisk >= 55 ? 't-warn' : 't-ok'">{{ Number.isFinite(hottestDisk) ? Math.round(hottestDisk) + ' °C' : '--' }}</b></div>
+            <div class="chip"><span class="chip__label">ZFS errors</span><b :class="diskErrorTotal > 0 ? 't-warn' : 't-ok'">{{ diskErrorTotal }}</b></div>
+            <div v-if="diskThroughput.known" class="chip">
+              <span class="chip__label">Throughput now</span>
+              <b>{{ formatRate(diskThroughput.read) }} <span class="chip__unit">read</span> · {{ formatRate(diskThroughput.write) }} <span class="chip__unit">write</span></b>
+            </div>
+            <div class="chip"><span class="chip__label">Total</span><b>{{ formatCapacity(diskCapacity) }}</b></div>
+          </div>
+          <ListTable
+            caption="Disks"
+            :rows="filteredDisks"
+            :columns="diskColumns"
+            :row-key="(d: Disk) => d.name"
+            :is-active="diskActive"
+            @select="(d: Disk) => (selectedTarget = { kind: 'disk', name: d.name })"
+          >
+            <template #cell-size="{ row }">{{ formatCapacity(row.size) }}</template>
+            <template #cell-temp="{ row }"><TempRange :disk="row" /></template>
+            <template #cell-read="{ row }">{{ row.read_bytes_per_sec !== undefined ? formatRate(row.read_bytes_per_sec) : '—' }}</template>
+            <template #cell-write="{ row }">{{ row.write_bytes_per_sec !== undefined ? formatRate(row.write_bytes_per_sec) : '—' }}</template>
+            <template #cell-status="{ row }">
+              <span class="badge" :class="diskBadge(row).cls">{{ diskBadge(row).label }}</span>
+            </template>
+          </ListTable>
         </section>
 
         <section v-show="sectionVisible('datasets')" data-section="datasets">
@@ -629,6 +711,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
       <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" :replications="replications" />
       <DatasetDetails v-else-if="selected?.kind === 'dataset'" :dataset="selected.data" />
       <VMDetails v-else-if="selected?.kind === 'vm'" :vm="selected.data" />
+      <DiskDetails v-else-if="selected?.kind === 'disk'" :disk="selected.data" />
       <StackDetails
         v-else-if="selected?.kind === 'stack'"
         :stack="selected.data"
@@ -857,6 +940,10 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 .rail__item--pool.scroll-active svg {
   color: var(--pool);
 }
+.rail__item--disk.active svg,
+.rail__item--disk.scroll-active svg {
+  color: var(--pool); /* disks belong to pools */
+}
 .rail__item--dataset.active svg,
 .rail__item--dataset.scroll-active svg {
   color: var(--dataset);
@@ -898,6 +985,44 @@ section {
 }
 .section--container {
   --accent: var(--container);
+}
+.section--disk {
+  --accent: var(--pool);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.8rem;
+}
+.chip {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.chip__label {
+  display: block;
+}
+.chip b {
+  display: block;
+  color: var(--text);
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.chip b.t-ok {
+  color: var(--ok-t);
+}
+.chip b.t-warn {
+  color: var(--warn-t);
+}
+.chip__unit {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-weight: 400;
 }
 
 section h2 {
