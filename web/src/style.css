@@ -37,6 +37,7 @@
   --crit-t: #e28282;
   --gray: #6b7280;
   --gray-t: #9ca3af;
+  --info-t: #6aa5f0; /* informational text (alerts); status-adjacent, brighter than --stack for contrast on tinted fills */
 
   font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
