@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { Container } from '../composables/usePoolSocket'
 
 const props = defineProps<{ container: Container }>()
+defineEmits<{ 'open-stack': [name: string] }>()
 
 const binds = computed(() => props.container.mounts.filter((m) => m.type === 'bind'))
 const volumes = computed(() => props.container.mounts.filter((m) => m.type === 'volume'))
@@ -16,7 +17,17 @@ function formatStartedAt(iso: string): string {
 <template>
   <div class="drawer__section">
     <h3>Overview</h3>
+    <div class="drawer__kv">
+      <span>Stack</span>
+      <span>
+        <button v-if="container.stack" class="drawer__link" @click="$emit('open-stack', container.stack)">
+          {{ container.stack }}
+        </button>
+        <template v-else>-- (no stack)</template>
+      </span>
+    </div>
     <div class="drawer__kv"><span>Started</span><span>{{ formatStartedAt(container.started_at) }}</span></div>
+    <div v-if="container.state === 'exited'" class="drawer__kv"><span>Exit code</span><span>{{ container.exit_code }}</span></div>
     <div class="drawer__kv"><span>Restart policy</span><span>{{ container.restart_policy || 'none' }}</span></div>
     <div class="drawer__kv"><span>Command</span><span>{{ container.command || '--' }}</span></div>
   </div>

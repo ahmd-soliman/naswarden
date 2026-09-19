@@ -30,12 +30,22 @@ func NewClient(baseURL string) *Client {
 }
 
 type containerSummary struct {
-	ID     string   `json:"Id"`
-	Names  []string `json:"Names"`
-	Image  string   `json:"Image"`
-	State  string   `json:"State"`  // "running", "exited", ...
-	Status string   `json:"Status"` // human-readable, e.g. "Up 12 minutes (healthy)"
+	ID     string            `json:"Id"`
+	Names  []string          `json:"Names"`
+	Image  string            `json:"Image"`
+	State  string            `json:"State"`  // "running", "exited", ...
+	Status string            `json:"Status"` // human-readable, e.g. "Up 12 minutes (healthy)"
+	Labels map[string]string `json:"Labels"`
 }
+
+// Compose labels -- confirmed present on the list response itself against
+// the live Docker API (no extra per-container call needed).
+const (
+	projectLabel = "com.docker.compose.project"
+	configLabel  = "com.docker.compose.project.config_files"
+	oneoffLabel  = "com.docker.compose.oneoff" // "True" for `docker compose run` containers
+	iconLabel    = "naswarden.icon"            // optional: icon slug override, set on any service
+)
 
 // Container is one running/stopped container with its current resource
 // usage. CPUPercent/MemUsed/MemLimit are zero for non-running containers
@@ -54,6 +64,10 @@ type Container struct {
 	Mounts        []Mount     `json:"mounts"`
 	Networks      []NetworkIP `json:"networks"`
 	Ports         []string    `json:"ports"`
+	Stack         string      `json:"stack"`        // compose project, "" for a loose container
+	ComposeFile   string      `json:"compose_file"` // compose file(s) that define it
+	Icon          string      `json:"icon"`         // optional `naswarden.icon` label
+	ExitCode      int         `json:"exit_code"`    // last exit code; meaningful once stopped
 }
 
 // Mount is one bind mount or named volume attached to a container --
@@ -98,6 +112,7 @@ type inspectResponse struct {
 	} `json:"HostConfig"`
 	State struct {
 		StartedAt string `json:"StartedAt"`
+		ExitCode  int    `json:"ExitCode"`
 	} `json:"State"`
 	NetworkSettings struct {
 		Networks map[string]struct {
@@ -129,8 +144,14 @@ type statsResponse struct {
 	} `json:"memory_stats"`
 }
 
-// ListContainers returns every container (running and stopped) with live
-// stats for the running ones.
+// ListContainers returns the containers naswarden shows, with live stats for
+// the ones that are up.
+//
+// The list includes STOPPED containers that belong to a compose project
+// (`all=true`): a stack can only report "2/3 running" if it can see the
+// member that is down. Stopped containers with no compose project, and
+// stopped one-off `docker compose run` containers, are dropped here -- no
+// view shows them (retired runner build containers etc. are just noise).
 //
 // Stats are fetched CONCURRENTLY, not in a loop -- confirmed directly
 // against the real Docker Engine API that a single non-streaming stats
@@ -142,30 +163,37 @@ type statsResponse struct {
 // by comparing what the live deployment actually returned against what
 // local testing (a handful of containers) had shown.
 func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
-	// No `all=true` -- Docker's default already returns running containers
-	// only, which is exactly what we want: exited/created containers
-	// (stopped runner build containers, retired one-offs, etc.) are noise
-	// on an overview page.
-	var running []containerSummary
-	if err := c.get(ctx, "/containers/json", &running); err != nil {
+	var listed []containerSummary
+	if err := c.get(ctx, "/containers/json?all=true", &listed); err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
 	}
 
-	containers := make([]Container, len(running))
+	kept := make([]containerSummary, 0, len(listed))
+	for _, s := range listed {
+		if IsStopped(s.State) && (s.Labels[projectLabel] == "" || s.Labels[oneoffLabel] == "True") {
+			continue
+		}
+		kept = append(kept, s)
+	}
+
+	containers := make([]Container, len(kept))
 	var wg sync.WaitGroup
 	var failures atomic.Int64
 
-	for i, s := range running {
+	for i, s := range kept {
 		name := s.ID
 		if len(s.Names) > 0 {
 			name = trimLeadingSlash(s.Names[0])
 		}
 
 		containers[i] = Container{
-			Name:   name,
-			Image:  s.Image,
-			State:  s.State,
-			Status: s.Status,
+			Name:        name,
+			Image:       s.Image,
+			State:       s.State,
+			Status:      s.Status,
+			Stack:       s.Labels[projectLabel],
+			ComposeFile: s.Labels[configLabel],
+			Icon:        s.Labels[iconLabel],
 			// Explicitly non-nil -- a Go nil slice marshals to JSON `null`,
 			// not `[]`, and the frontend calls .length/.map on these
 			// unconditionally (every container has these fields, empty or
@@ -180,47 +208,56 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 		}
 
 		wg.Add(1)
-		go func(i int, id string) {
+		go func(i int, id string, live bool) {
 			defer wg.Done()
-			var stats statsResponse
-			if err := c.get(ctx, fmt.Sprintf("/containers/%s/stats?stream=false", id), &stats); err != nil {
-				// A stats failure for one container (stopped between the
-				// list call and now, or a genuine timeout) shouldn't fail
-				// the whole refresh -- it just reports zeroed usage for
-				// that one. Counted, not silently dropped, so a systemic
-				// problem (like the sequential-fetch bug this replaced)
-				// is visible in logs instead of just showing up as
-				// mysteriously-zeroed stats in the UI.
-				failures.Add(1)
-				return
+			// Stats only exist for a container that is up. A failure for one
+			// (it stopped between the list call and now, or a genuine
+			// timeout) shouldn't fail the whole refresh -- it just reports
+			// zeroed usage for that one. Counted, not silently dropped, so a
+			// systemic problem (like the sequential-fetch bug this replaced)
+			// is visible in logs instead of just showing up as
+			// mysteriously-zeroed stats in the UI.
+			if live {
+				var stats statsResponse
+				if err := c.get(ctx, fmt.Sprintf("/containers/%s/stats?stream=false", id), &stats); err != nil {
+					failures.Add(1)
+				} else {
+					containers[i].CPUPercent = cpuPercent(stats)
+					containers[i].MemUsed = stats.MemoryStats.Usage
+					containers[i].MemLimit = stats.MemoryStats.Limit
+				}
 			}
-			containers[i].CPUPercent = cpuPercent(stats)
-			containers[i].MemUsed = stats.MemoryStats.Usage
-			containers[i].MemLimit = stats.MemoryStats.Limit
 
+			// Inspect is independent of stats (a stopped container has no
+			// stats but still has mounts, an exit code, ...) and best-effort
+			// too: a failure just leaves the detail drawer sparse for this
+			// one container.
 			var insp inspectResponse
 			if err := c.get(ctx, fmt.Sprintf("/containers/%s/json", id), &insp); err != nil {
-				// Same best-effort treatment -- the overview card already
-				// has what it needs from stats above, so a failed inspect
-				// just means the detail drawer will be sparse for this one
-				// container, not that the refresh fails.
 				return
 			}
 			applyInspect(&containers[i], insp)
-		}(i, s.ID)
+		}(i, s.ID, !IsStopped(s.State))
 	}
 
 	wg.Wait()
 	if n := failures.Load(); n > 0 {
-		slog.Warn("failed to fetch stats for some containers", "count", n, "total", len(running))
+		slog.Warn("failed to fetch stats for some containers", "count", n, "total", len(kept))
 	}
 	return containers, nil
+}
+
+// IsStopped reports whether a Docker container state means "not running and
+// not coming back on its own" (as opposed to running/restarting/paused).
+func IsStopped(state string) bool {
+	return state == "exited" || state == "created" || state == "dead"
 }
 
 // applyInspect fills in the detail-drawer fields from a container's
 // inspect response.
 func applyInspect(c *Container, insp inspectResponse) {
 	c.StartedAt = insp.State.StartedAt
+	c.ExitCode = insp.State.ExitCode
 	c.RestartPolicy = insp.HostConfig.RestartPolicy.Name
 
 	cmd := insp.Config.Entrypoint

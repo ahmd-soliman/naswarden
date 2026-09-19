@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-const props = defineProps<{ open: boolean; title: string }>()
-const emit = defineEmits<{ close: [] }>()
+const props = defineProps<{ open: boolean; title: string; back?: string }>()
+const emit = defineEmits<{ close: []; back: [] }>()
 
 const drawer = ref<HTMLElement | null>(null)
 const closeButton = ref<HTMLButtonElement | null>(null)
+const backButton = ref<HTMLButtonElement | null>(null)
 // Where focus was when the drawer opened -- put back on close so keyboard
 // users land on the card they activated, not at the top of the page.
 let returnFocusTo: HTMLElement | null = null
@@ -21,6 +22,18 @@ watch(
       returnFocusTo.focus()
       returnFocusTo = null
     }
+  },
+)
+
+// Drilling from one view into another (stack -> container) replaces the
+// content the user just activated, which would drop focus to <body>; put it
+// on the back link if there is one, otherwise on the close button.
+watch(
+  () => props.title,
+  async () => {
+    if (!props.open) return
+    await nextTick()
+    ;(backButton.value ?? closeButton.value)?.focus()
   },
 )
 
@@ -67,7 +80,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
     :inert="!open"
   >
     <div class="drawer__header">
-      <span id="drawer-title" class="drawer__title">{{ title }}</span>
+      <div class="drawer__titlebox">
+        <button v-if="back" ref="backButton" class="drawer__back" @click="emit('back')">&lsaquo; {{ back }}</button>
+        <span id="drawer-title" class="drawer__title"><slot name="title-icon" />{{ title }}</span>
+      </div>
       <button ref="closeButton" class="drawer__close" aria-label="Close" @click="emit('close')">&times;</button>
     </div>
     <div class="drawer__body">
