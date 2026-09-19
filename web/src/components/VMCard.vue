@@ -16,6 +16,10 @@ function vmIconCandidates(vm: VM): string[] {
   const nameLower = vm.name.toLowerCase()
   const osLower = (vm.os || '').toLowerCase()
 
+  // 0. Explicit user configuration override (e.g. incus config set <name> user.icon <slug>)
+  if (vm.config?.['naswarden.icon']) list.push(vm.config['naswarden.icon'])
+  if (vm.config?.['user.icon']) list.push(vm.config['user.icon'])
+
   // 1. Name-based application / service slugs
   if (nameLower.startsWith('k8s') || nameLower.includes('kubernetes')) {
     list.push('kubernetes', 'k8s')
