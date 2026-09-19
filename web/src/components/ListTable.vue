@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="T">
 import { computed, ref } from 'vue'
+import { clippedTitle } from '../composables/tooltip'
 
 export interface Column<R> {
   key: string
@@ -42,6 +43,14 @@ const sorted = computed(() => {
   })
 })
 
+// Set on hover, when the cell's real width is known.
+function showFullText(e: MouseEvent) {
+  const el = e.currentTarget as HTMLElement
+  const full = clippedTitle(el)
+  if (full) el.title = full
+  else el.removeAttribute('title')
+}
+
 const ariaSort = (key: string) =>
   sort.value?.key === key ? (sort.value.dir === 'asc' ? 'ascending' : 'descending') : 'none'
 </script>
@@ -68,7 +77,7 @@ const ariaSort = (key: string) =>
           :class="{ 'lt__row--open': isActive?.(row) }"
           @click="emit('select', row)"
         >
-          <td v-for="(col, i) in columns" :key="col.key" :class="{ 'lt__num': col.align === 'right' }">
+          <td v-for="(col, i) in columns" :key="col.key" :class="{ 'lt__num': col.align === 'right' }" @mouseenter="showFullText">
             <button v-if="i === 0" type="button" class="lt__open" @click.stop="emit('select', row)">
               <slot :name="`cell-${col.key}`" :row="row">{{ col.value(row) }}</slot>
             </button>
