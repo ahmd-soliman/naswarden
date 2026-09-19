@@ -91,8 +91,12 @@ func ListPools(ctx context.Context, c *Client) ([]Pool, error) {
 	pools := make([]Pool, len(rawPools))
 	for i, rp := range rawPools {
 		pool := rp.Pool
+		// Explicitly non-nil -- a Go nil slice marshals to JSON `null`, and
+		// the frontend calls .length/v-for on this unconditionally (same
+		// class of bug confirmed for docker.Container's array fields).
+		pool.Vdevs = []Vdev{}
 		for _, vd := range rp.Topology.Data {
-			vdev := Vdev{Name: vd.Name, Type: vd.Type, Status: vd.Status}
+			vdev := Vdev{Name: vd.Name, Type: vd.Type, Status: vd.Status, Children: []VdevChild{}}
 			if len(vd.Children) > 0 {
 				for _, ch := range vd.Children {
 					vdev.Children = append(vdev.Children, VdevChild{
