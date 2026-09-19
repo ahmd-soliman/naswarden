@@ -290,3 +290,22 @@ func TestLiveIncusConnection(t *testing.T) {
 			inst.Name, inst.Type, inst.IsVM, inst.Status, inst.OS, inst.IPv4, inst.CPUCores, inst.MemUsed, inst.MemTotal, inst.DiskUsed, inst.DiskTotal)
 	}
 }
+
+func TestPrevCPUPrunedForDeletedInstances(t *testing.T) {
+	c := &Client{prevCPU: map[string]cpuSample{"gone": {usageNs: 1}, "kept": {usageNs: 1}}}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"metadata":[{"name":"kept","type":"container","status":"Running","state":{"cpu":{"usage":5}}}]}`))
+	}))
+	defer srv.Close()
+	c.baseURL = srv.URL
+	c.http = srv.Client()
+	if _, err := c.ListInstances(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.prevCPU["gone"]; ok {
+		t.Fatal("sample for a deleted instance should be pruned")
+	}
+	if _, ok := c.prevCPU["kept"]; !ok {
+		t.Fatal("sample for a live instance should be kept")
+	}
+}
