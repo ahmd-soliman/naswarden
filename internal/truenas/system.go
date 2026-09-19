@@ -180,11 +180,16 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 	if err := json.Unmarshal(raw, &rawIfaces); err != nil {
 		return nil, fmt.Errorf("interface.query: decode: %w", err)
 	}
+	// Explicitly non-nil -- a Go nil slice marshals to JSON `null`, and the
+	// frontend calls .length/v-for on this unconditionally (same class of
+	// bug confirmed for docker.Container's array fields, which broke the
+	// container detail drawer for real on the live deployment).
+	info.Interfaces = []Interface{}
 	for _, ri := range rawIfaces {
 		if ri.State.LinkState != "LINK_STATE_UP" {
 			continue // down/unused interfaces are noise on an overview page
 		}
-		iface := Interface{Name: ri.Name, LinkState: ri.State.LinkState, Speed: ri.State.ActiveMediaSubtype}
+		iface := Interface{Name: ri.Name, LinkState: ri.State.LinkState, Speed: ri.State.ActiveMediaSubtype, Addresses: []string{}}
 		for _, a := range ri.State.Aliases {
 			iface.Addresses = append(iface.Addresses, fmt.Sprintf("%s/%d", a.Address, a.Netmask))
 		}
