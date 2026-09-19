@@ -8,6 +8,7 @@ package metrics
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -53,6 +54,50 @@ var (
 	}, []string{"container", "stack"})
 )
 
+// tracked remembers which label sets a gauge vector currently holds, so a
+// refresh can delete just the series that disappeared. Reset()-then-refill
+// left a window where a Prometheus scrape saw no series at all, which reads
+// as every pool/container/instance vanishing.
+type tracked struct {
+	vec  *prometheus.GaugeVec
+	mu   sync.Mutex
+	last map[string][]string
+}
+
+func newTracked(vec *prometheus.GaugeVec) *tracked {
+	return &tracked{vec: vec, last: map[string][]string{}}
+}
+
+// begin returns a setter for one refresh; call done() after the last set.
+func (t *tracked) begin() (set func(v float64, labels ...string), done func()) {
+	cur := map[string][]string{}
+	set = func(v float64, labels ...string) {
+		t.vec.WithLabelValues(labels...).Set(v)
+		cur[strings.Join(labels, "\x00")] = labels
+	}
+	done = func() {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		for k, labels := range t.last {
+			if _, ok := cur[k]; !ok {
+				t.vec.DeleteLabelValues(labels...)
+			}
+		}
+		t.last = cur
+	}
+	return set, done
+}
+
+var (
+	datasetUsedSeries  = newTracked(datasetUsedBytes)
+	datasetQuotaSeries = newTracked(datasetQuotaBytes)
+	poolAllocSeries    = newTracked(poolAllocatedBytes)
+	poolSizeSeries     = newTracked(poolSizeBytes)
+	poolHealthySeries  = newTracked(poolHealthy)
+	instanceSeries     = newTracked(instanceUp)
+	containerSeries    = newTracked(containerUp)
+)
+
 func init() {
 	prometheus.MustRegister(
 		datasetUsedBytes,
@@ -67,50 +112,57 @@ func init() {
 
 // UpdateDatasets refreshes the dataset quota gauges.
 func UpdateDatasets(datasets []truenas.Dataset) {
-	datasetUsedBytes.Reset()
-	datasetQuotaBytes.Reset()
+	setUsed, doneUsed := datasetUsedSeries.begin()
+	setQuota, doneQuota := datasetQuotaSeries.begin()
 	for _, d := range datasets {
-		datasetUsedBytes.WithLabelValues(d.Name).Set(float64(d.Used))
-		datasetQuotaBytes.WithLabelValues(d.Name).Set(float64(d.Quota))
+		setUsed(float64(d.Used), d.Name)
+		setQuota(float64(d.Quota), d.Name)
 	}
+	doneUsed()
+	doneQuota()
 }
 
 // UpdatePools refreshes the ZFS pool capacity and health gauges.
 func UpdatePools(pools []truenas.Pool) {
-	poolAllocatedBytes.Reset()
-	poolSizeBytes.Reset()
-	poolHealthy.Reset()
+	setAlloc, doneAlloc := poolAllocSeries.begin()
+	setSize, doneSize := poolSizeSeries.begin()
+	setHealthy, doneHealthy := poolHealthySeries.begin()
 	for _, p := range pools {
-		poolAllocatedBytes.WithLabelValues(p.Name).Set(float64(p.Allocated))
-		poolSizeBytes.WithLabelValues(p.Name).Set(float64(p.Size))
+		setAlloc(float64(p.Allocated), p.Name)
+		setSize(float64(p.Size), p.Name)
 		val := 0.0
 		if p.Healthy {
 			val = 1.0
 		}
-		poolHealthy.WithLabelValues(p.Name).Set(val)
+		setHealthy(val, p.Name)
 	}
+	doneAlloc()
+	doneSize()
+	doneHealthy()
 }
 
 // UpdateInstances refreshes the VM and LXC container status gauges.
 func UpdateInstances(instances []vm.Instance) {
-	instanceUp.Reset()
+	set, done := instanceSeries.begin()
 	for _, inst := range instances {
 		val := 0.0
 		if strings.EqualFold(inst.Status, "running") {
 			val = 1.0
 		}
-		instanceUp.WithLabelValues(inst.Name, inst.Manager, inst.Type).Set(val)
+		set(val, inst.Name, inst.Manager, inst.Type)
 	}
+	done()
 }
 
 // UpdateContainers refreshes the Docker container status gauges.
 func UpdateContainers(containers []docker.Container) {
-	containerUp.Reset()
+	set, done := containerSeries.begin()
 	for _, c := range containers {
 		val := 0.0
 		if strings.EqualFold(c.State, "running") {
 			val = 1.0
 		}
-		containerUp.WithLabelValues(c.Name, c.Stack).Set(val)
+		set(val, c.Name, c.Stack)
 	}
+	done()
 }
