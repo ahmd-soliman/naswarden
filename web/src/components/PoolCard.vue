@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { Pool } from '../composables/usePoolSocket'
 
-const props = defineProps<{ pool: Pool }>()
+const props = defineProps<{ pool: Pool; active?: boolean }>()
 defineEmits<{ select: [] }>()
 
 const statusColor = computed(() => {
@@ -29,7 +29,15 @@ function formatBytes(bytes: number): string {
 </script>
 
 <template>
-  <div class="pool-card card--clickable" tabindex="0" role="button" @click="$emit('select')" @keydown.enter="$emit('select')" @keydown.space.prevent="$emit('select')">
+  <div
+    class="pool-card card--clickable"
+    :class="{ 'card--open': active }"
+    tabindex="0"
+    role="button"
+    @click="$emit('select')"
+    @keydown.enter="$emit('select')"
+    @keydown.space.prevent="$emit('select')"
+  >
     <div class="pool-card__header">
       <span class="pool-card__name">{{ pool.name }}</span>
       <span class="badge" :class="`badge--${statusColor}`">{{ pool.status }}</span>

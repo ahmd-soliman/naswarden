@@ -146,7 +146,11 @@ const drawerTitle = computed(() => {
       <main class="app__content">
         <section v-if="server" data-section="server" v-show="activeSection === 'all' || activeSection === 'server'">
           <h2>Server</h2>
-          <ServerCard :server="server" @select="selected = { kind: 'server', data: server }" />
+          <ServerCard
+            :server="server"
+            :active="selected?.kind === 'server'"
+            @select="selected = { kind: 'server', data: server }"
+          />
         </section>
 
         <section data-section="pools" v-show="activeSection === 'all' || activeSection === 'pools'">
@@ -156,6 +160,7 @@ const drawerTitle = computed(() => {
               v-for="pool in pools"
               :key="pool.name"
               :pool="pool"
+              :active="selected?.kind === 'pool' && selected.data.name === pool.name"
               @select="selected = { kind: 'pool', data: pool }"
             />
             <p v-if="pools.length === 0" class="empty">Waiting for data…</p>
@@ -169,6 +174,7 @@ const drawerTitle = computed(() => {
               v-for="dataset in sortedDatasets"
               :key="dataset.name"
               :dataset="dataset"
+              :active="selected?.kind === 'dataset' && selected.data.name === dataset.name"
               @select="selected = { kind: 'dataset', data: dataset }"
             />
             <p v-if="datasets.length === 0" class="empty">No datasets with a quota configured.</p>
@@ -186,6 +192,7 @@ const drawerTitle = computed(() => {
               v-for="container in sortedContainers"
               :key="container.name"
               :container="container"
+              :active="selected?.kind === 'container' && selected.data.name === container.name"
               @select="selected = { kind: 'container', data: container }"
             />
           </div>
