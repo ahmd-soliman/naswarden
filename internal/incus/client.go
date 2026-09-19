@@ -12,7 +12,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,13 +60,13 @@ func NewClient(rawURL, certData, keyData string, insecureTLS bool) (*Client, err
 
 	tlsConfig := &tls.Config{
 		Certificates:       []tls.Certificate{tlsCert},
-		InsecureSkipVerify: insecureTLS,
+		InsecureSkipVerify: insecureTLS, //nolint:gosec // opt-out via INCUS_INSECURE_TLS=false; LAN self-signed certs
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig:     tlsConfig,
-		MaxIdleConns:        10,
-		IdleConnTimeout:     30 * time.Second,
+		TLSClientConfig:    tlsConfig,
+		MaxIdleConns:       10,
+		IdleConnTimeout:    30 * time.Second,
 		DisableCompression: true,
 	}
 
@@ -95,7 +94,8 @@ func parsePEMOrFile(input string) ([]byte, error) {
 		return decoded, nil
 	}
 
-	if data, err := os.ReadFile(trimmed); err == nil {
+	// The path is operator-supplied env config, not user input.
+	if data, err := os.ReadFile(trimmed); err == nil { //nolint:gosec // see above
 		return data, nil
 	}
 
@@ -121,16 +121,16 @@ type rawInstance struct {
 }
 
 type rawState struct {
-	Status     string                 `json:"status"`
-	StatusCode int                    `json:"status_code"`
-	StartedAt  string                 `json:"started_at"`
-	CPU        rawCPU                 `json:"cpu"`
-	Memory     rawMemory              `json:"memory"`
-	Disk       map[string]rawDisk     `json:"disk"`
-	Network    map[string]rawNetwork  `json:"network"`
-	OSInfo     rawOSInfo              `json:"os_info"`
-	Pid        int                    `json:"pid"`
-	Processes  int                    `json:"processes"`
+	Status     string                `json:"status"`
+	StatusCode int                   `json:"status_code"`
+	StartedAt  string                `json:"started_at"`
+	CPU        rawCPU                `json:"cpu"`
+	Memory     rawMemory             `json:"memory"`
+	Disk       map[string]rawDisk    `json:"disk"`
+	Network    map[string]rawNetwork `json:"network"`
+	OSInfo     rawOSInfo             `json:"os_info"`
+	Pid        int                   `json:"pid"`
+	Processes  int                   `json:"processes"`
 }
 
 type rawCPU struct {
@@ -173,12 +173,12 @@ type rawOSInfo struct {
 // with full state, resource counters, and network addresses in a single round-trip.
 func (c *Client) ListInstances(ctx context.Context) ([]Instance, error) {
 	url := fmt.Sprintf("%s/1.0/instances?recursion=2", c.baseURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil) //nolint:gosec // URL is operator-supplied INCUS_URL
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.http.Do(req)
+	resp, err := c.http.Do(req) //nolint:gosec // see above
 	if err != nil {
 		return nil, fmt.Errorf("incus request failed: %w", err)
 	}
@@ -318,13 +318,19 @@ func (c *Client) ListInstances(ctx context.Context) ([]Instance, error) {
 		instances = append(instances, inst)
 	}
 
-	// Sort: VMs first, then containers; alphabetically within type
-	sort.Slice(instances, func(i, j int) bool {
-		if instances[i].IsVM != instances[j].IsVM {
-			return instances[i].IsVM // true (VM) before false (container)
+	vm.Sort(instances)
+
+	// Forget CPU samples of instances that no longer exist, or the map
+	// grows forever as instances are created and deleted.
+	seen := make(map[string]struct{}, len(res.Metadata))
+	for _, raw := range res.Metadata {
+		seen[raw.Name] = struct{}{}
+	}
+	for name := range c.prevCPU {
+		if _, ok := seen[name]; !ok {
+			delete(c.prevCPU, name)
 		}
-		return instances[i].Name < instances[j].Name
-	})
+	}
 
 	return instances, nil
 }
