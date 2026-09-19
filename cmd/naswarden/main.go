@@ -130,6 +130,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		slog.Error("failed to refresh pools", "err", err)
 		return
 	}
+	metrics.UpdatePools(pools)
 
 	datasets, err := truenas.ListDatasets(ctx, client)
 	if err != nil {
@@ -149,6 +150,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 			slog.Error("failed to refresh containers", "err", err)
 		}
 	}
+	metrics.UpdateContainers(containers)
 
 	// Virtual machines and containers from TrueNAS Native and Incus
 	var truenasVMs []vm.Instance
@@ -183,6 +185,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		}
 		return vms[i].Name < vms[j].Name
 	})
+	metrics.UpdateInstances(vms)
 
 	payload, err := json.Marshal(map[string]any{
 		"type": "state",
