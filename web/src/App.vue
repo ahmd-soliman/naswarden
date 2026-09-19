@@ -10,6 +10,7 @@ import AppIcon from './components/AppIcon.vue'
 import SearchBox from './components/SearchBox.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import { useVersion, versionDetail, versionLabel } from './composables/useVersion'
+import { isScrollHint, isScrolledDown } from './composables/rail'
 import ServerDetails from './components/ServerDetails.vue'
 import PoolDetails from './components/PoolDetails.vue'
 import DatasetDetails from './components/DatasetDetails.vue'
@@ -176,11 +177,24 @@ function initObserver() {
   document.querySelectorAll('[data-section]').forEach((el) => observer!.observe(el))
 }
 
-onMounted(() => nextTick(initObserver))
+// No hint at the top of the page (see composables/rail.ts).
+const scrolledDown = ref(false)
+function onScroll() {
+  scrolledDown.value = isScrolledDown(window.scrollY)
+}
+
+onMounted(() => {
+  nextTick(initObserver)
+  onScroll() // the browser may restore a scrolled position on reload
+  window.addEventListener('scroll', onScroll, { passive: true })
+})
 // Containers/VMs sections only exist in the DOM once telemetry arrives --
 // re-observe when that changes so the rail highlight tracks them too.
 watch([hasContainers, hasStacks, hasVMs, hasDisks], () => nextTick(initObserver))
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  window.removeEventListener('scroll', onScroll)
+})
 
 const poolAlerts = computed(() => {
   const crit = pools.value.filter((p) => !p.healthy).length
@@ -221,7 +235,7 @@ const containerAlerts = computed(() => {
 function railClass(section: 'server' | 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers') {
   return {
     active: activeSection.value === section,
-    'scroll-active': activeSection.value === 'all' && scrollSection.value === section,
+    'scroll-active': isScrollHint(activeSection.value, scrolledDown.value, scrollSection.value, section),
   }
 }
 
@@ -947,12 +961,25 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
   color: #fff;
 }
 
-.rail__item.active,
-.rail__item.scroll-active {
+.rail__item.active {
   background: var(--card-bg);
   border-color: var(--border);
   color: var(--text);
 }
+
+/* The scroll hint must not look like a selection: no fill, just a tinted icon
+   and a thin marker in the section's colour. */
+.rail__item.scroll-active {
+  color: var(--text);
+  box-shadow: inset 2px 0 0 var(--rail-accent, var(--border));
+}
+.rail__item--server { --rail-accent: var(--server); }
+.rail__item--pool,
+.rail__item--disk { --rail-accent: var(--pool); }
+.rail__item--dataset { --rail-accent: var(--dataset); }
+.rail__item--vm { --rail-accent: var(--vm); }
+.rail__item--stack { --rail-accent: var(--stack); }
+.rail__item--container { --rail-accent: var(--container); }
 
 .rail__item--server.active svg,
 .rail__item--server.scroll-active svg {
@@ -1150,6 +1177,9 @@ section h2 {
     flex: 0 0 auto;
     width: auto;
     white-space: nowrap;
+  }
+  .rail__item.scroll-active {
+    box-shadow: inset 0 -2px 0 var(--rail-accent, var(--border)); /* the rail is a row of tabs here */
   }
 }
 </style>
