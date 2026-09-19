@@ -127,7 +127,12 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, hub *ws.Hub) {
 	}
 
 	payload, err := json.Marshal(map[string]any{
-		"type":       "state",
+		"type": "state",
+		// When this snapshot was taken. The UI shows its age and flags it
+		// stale: if a refresh fails nothing is broadcast, so without this a
+		// connected browser would keep showing old numbers under a "live"
+		// indicator with no way to tell.
+		"updated_at": time.Now().Unix(),
 		"server":     server,
 		"pools":      pools,
 		"datasets":   datasets,
