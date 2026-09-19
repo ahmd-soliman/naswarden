@@ -6,6 +6,7 @@ const props = defineProps<{ vm: VM; active?: boolean }>()
 defineEmits<{ select: [] }>()
 
 const isRunning = computed(() => props.vm.status.toLowerCase() === 'running')
+const isTrueNAS = computed(() => props.vm.manager === 'truenas')
 
 const statusBadge = computed(() => {
   const s = props.vm.status.toLowerCase()
@@ -13,6 +14,12 @@ const statusBadge = computed(() => {
   if (s === 'stopped') return { label: 'Stopped', cls: 'badge--gray' }
   if (s === 'frozen') return { label: 'Frozen', cls: 'badge--yellow' }
   return { label: props.vm.status, cls: 'badge--red' }
+})
+
+const primaryPassthrough = computed(() => {
+  if (!props.vm.passthrough || props.vm.passthrough.length === 0) return null
+  const gpu = props.vm.passthrough.find((p) => /geforce|radeon|vga|gtx|rtx|nvidia/i.test(p))
+  return gpu || props.vm.passthrough[0]
 })
 
 const memPercent = computed(() => {
@@ -57,6 +64,9 @@ function formatBytes(bytes: number): string {
     <div class="vm-card__header">
       <span class="vm-card__name" :title="vm.name">{{ vm.name }}</span>
       <div class="vm-card__badges">
+        <span class="vm-manager-pill" :class="isTrueNAS ? 'vm-manager-pill--truenas' : 'vm-manager-pill--incus'">
+          {{ isTrueNAS ? 'TrueNAS' : 'Incus' }}
+        </span>
         <span class="vm-type-pill" :class="vm.is_vm ? 'vm-type-pill--kvm' : 'vm-type-pill--lxc'">
           {{ vm.is_vm ? 'KVM VM' : 'LXC' }}
         </span>
@@ -67,9 +77,18 @@ function formatBytes(bytes: number): string {
     </div>
 
     <div class="vm-card__meta">
-      <span class="vm-card__os" :title="vm.os || 'Linux'">{{ vm.os || 'Linux' }}</span>
-      <span v-if="vm.ipv4.length > 0" class="vm-card__ip">
+      <div class="vm-card__os-wrap">
+        <span class="vm-card__os" :title="vm.os || 'Linux'">{{ vm.os || 'Linux' }}</span>
+        <span v-if="primaryPassthrough" class="vm-hw-pill" :title="primaryPassthrough">
+          <svg class="hw-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2.5"/><path d="M14 9h4M14 12h4M14 15h4"/></svg>
+          {{ primaryPassthrough }}
+        </span>
+      </div>
+      <span v-if="vm.ipv4 && vm.ipv4.length > 0" class="vm-card__ip">
         {{ vm.ipv4[0] }}<template v-if="vm.ipv4.length > 1"> (+{{ vm.ipv4.length - 1 }})</template>
+      </span>
+      <span v-else-if="vm.display_port" class="vm-card__display" title="SPICE console port">
+        SPICE :{{ vm.display_port }}
       </span>
     </div>
 
@@ -100,10 +119,30 @@ function formatBytes(bytes: number): string {
           <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
           Disk zvol <template v-if="vm.disk_pool">({{ vm.disk_pool }})</template>
         </span>
-        <span>{{ formatBytes(vm.disk_used) }} / {{ formatBytes(vm.disk_total) }} ({{ diskPercent }}%)</span>
+        <span>{{ formatBytes(vm.disk_used) }} / {{ formatBytes(vm.disk_total) }}<template v-if="diskPercent > 0"> ({{ diskPercent }}%)</template></span>
       </div>
     </template>
-    <div v-else class="vm-card__status">{{ vm.status }}</div>
+    <div v-else class="vm-card__stopped-block">
+      <div class="vm-card__stat">
+        <span class="vm-card__stat-label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+          Allocation
+        </span>
+        <span>
+          <template v-if="vm.cpu_cores">{{ vm.cpu_cores }} vCPU</template>
+          <template v-if="vm.cpu_cores && vm.mem_total"> · </template>
+          <template v-if="vm.mem_total">{{ formatBytes(vm.mem_total) }} RAM</template>
+        </span>
+      </div>
+
+      <div v-if="vm.disk_total > 0" class="vm-card__stat vm-card__stat--disk">
+        <span class="vm-card__stat-label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+          Disk zvol <template v-if="vm.disk_pool">({{ vm.disk_pool }})</template>
+        </span>
+        <span>{{ formatBytes(vm.disk_used) }} / {{ formatBytes(vm.disk_total) }}<template v-if="diskPercent > 0"> ({{ diskPercent }}%)</template></span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -147,6 +186,28 @@ function formatBytes(bytes: number): string {
   flex-shrink: 0;
 }
 
+.vm-manager-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+
+.vm-manager-pill--truenas {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.vm-manager-pill--incus {
+  background: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+  border-color: rgba(20, 184, 166, 0.35);
+}
+
 .vm-type-pill {
   font-size: 0.72rem;
   font-weight: 700;
@@ -178,10 +239,41 @@ function formatBytes(bytes: number): string {
   color: var(--text-dim);
 }
 
+.vm-card__os-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .vm-card__os {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.vm-hw-pill {
+  font-size: 0.7rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  padding: 0.08rem 0.38rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hw-glyph {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
 }
 
 .vm-card__ip {
@@ -193,6 +285,16 @@ function formatBytes(bytes: number): string {
   flex-shrink: 0;
 }
 
+.vm-card__display {
+  font-family: ui-monospace, monospace;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
 .badge {
   font-size: 0.8rem;
   font-weight: 600;
@@ -200,6 +302,12 @@ function formatBytes(bytes: number): string {
   border-radius: 999px;
   flex-shrink: 0;
   text-transform: uppercase;
+}
+
+.vm-card__stopped-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .vm-card__stat {
@@ -240,11 +348,6 @@ function formatBytes(bytes: number): string {
   height: 100%;
   border-radius: 999px;
   transition: width 0.4s ease;
-}
-
-.vm-card__status {
-  font-size: 0.8rem;
-  color: var(--text-dim);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -14,6 +15,7 @@ import (
 	"github.com/ahmd-soliman/naswarden/internal/incus"
 	"github.com/ahmd-soliman/naswarden/internal/metrics"
 	"github.com/ahmd-soliman/naswarden/internal/truenas"
+	"github.com/ahmd-soliman/naswarden/internal/vm"
 	"github.com/ahmd-soliman/naswarden/internal/web"
 	"github.com/ahmd-soliman/naswarden/internal/ws"
 )
@@ -148,16 +150,39 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		}
 	}
 
-	// Incus VMs & containers are also optional and refreshed best-effort.
-	vms := []incus.Instance{}
-	if incusClient != nil {
+	// Virtual machines and containers from TrueNAS Native and Incus
+	var truenasVMs []vm.Instance
+	if client != nil {
 		var err error
-		vms, err = incusClient.ListInstances(ctx)
+		truenasVMs, err = truenas.ListVMs(ctx, client)
 		if err != nil {
-			slog.Error("failed to refresh incus instances", "err", err)
-			vms = []incus.Instance{}
+			slog.Error("failed to refresh truenas vms", "err", err)
 		}
 	}
+
+	var incusInstances []vm.Instance
+	if incusClient != nil {
+		var err error
+		incusInstances, err = incusClient.ListInstances(ctx)
+		if err != nil {
+			slog.Error("failed to refresh incus instances", "err", err)
+		}
+	}
+
+	vms := make([]vm.Instance, 0, len(truenasVMs)+len(incusInstances))
+	vms = append(vms, truenasVMs...)
+	vms = append(vms, incusInstances...)
+
+	// Sort: VMs first, then containers; alphabetically within type
+	sort.Slice(vms, func(i, j int) bool {
+		if vms[i].IsVM != vms[j].IsVM {
+			return vms[i].IsVM // true (KVM VM) before false (LXC container)
+		}
+		if vms[i].Manager != vms[j].Manager {
+			return vms[i].Manager < vms[j].Manager
+		}
+		return vms[i].Name < vms[j].Name
+	})
 
 	payload, err := json.Marshal(map[string]any{
 		"type": "state",

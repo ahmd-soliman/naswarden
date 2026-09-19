@@ -17,11 +17,13 @@ export const matchesStack = (s: Stack, q: string) => !q || has(s.name, q) || s.m
 export const matchesContainer = (c: Container, q: string) =>
   !q || has(c.name, q) || has(c.stack, q) || has(c.image, q)
 
-// A VM or Incus instance matches on its name, OS, type (KVM vs LXC), or IP.
+// A VM or Incus instance matches on its name, OS, manager (TrueNAS vs Incus), type (KVM vs LXC), passthrough devices, or IP.
 export const matchesVM = (v: VM, q: string) =>
   !q ||
   has(v.name, q) ||
   has(v.os, q) ||
+  has(v.manager || '', q) ||
   has(v.type, q) ||
   has(v.is_vm ? 'kvm' : 'lxc', q) ||
+  (v.passthrough && v.passthrough.some((p) => has(p, q))) ||
   v.ipv4.some((ip) => has(ip, q))
