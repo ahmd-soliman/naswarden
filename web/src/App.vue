@@ -174,28 +174,82 @@ type Selected =
   // drawer offers a way back to it
   | { kind: 'container'; data: Container; fromStack?: string }
 
-const selected = ref<Selected | null>(null)
+type SelectionTarget =
+  | { kind: 'server' }
+  | { kind: 'pool'; name: string }
+  | { kind: 'dataset'; name: string }
+  | { kind: 'stack'; name: string }
+  | { kind: 'container'; name: string; fromStack?: string }
+
+const selectedTarget = ref<SelectionTarget | null>(null)
+
+// Cache the last seen object per entity so if an entity is briefly omitted
+// during a refresh cycle, the drawer does not abruptly flicker or unmount.
+const lastSnapshots = {
+  server: null as ServerInfo | null,
+  pools: new Map<string, Pool>(),
+  datasets: new Map<string, Dataset>(),
+  stacks: new Map<string, Stack>(),
+  containers: new Map<string, Container>(),
+}
+
+// Live-updating selected view: resolves dynamically against the latest
+// reactive websocket telemetry so the open drawer updates in real time.
+const selected = computed<Selected | null>(() => {
+  const target = selectedTarget.value
+  if (!target) return null
+
+  switch (target.kind) {
+    case 'server': {
+      if (server.value) lastSnapshots.server = server.value
+      const current = server.value ?? lastSnapshots.server
+      return current ? { kind: 'server', data: current } : null
+    }
+    case 'pool': {
+      const live = pools.value.find((p) => p.name === target.name)
+      if (live) lastSnapshots.pools.set(target.name, live)
+      const current = live ?? lastSnapshots.pools.get(target.name)
+      return current ? { kind: 'pool', data: current } : null
+    }
+    case 'dataset': {
+      const live = datasets.value.find((d) => d.name === target.name)
+      if (live) lastSnapshots.datasets.set(target.name, live)
+      const current = live ?? lastSnapshots.datasets.get(target.name)
+      return current ? { kind: 'dataset', data: current } : null
+    }
+    case 'stack': {
+      const live = stacks.value.find((s) => s.name === target.name)
+      if (live) lastSnapshots.stacks.set(target.name, live)
+      const current = live ?? lastSnapshots.stacks.get(target.name)
+      return current ? { kind: 'stack', data: current } : null
+    }
+    case 'container': {
+      const live = containers.value.find((c) => c.name === target.name)
+      if (live) lastSnapshots.containers.set(target.name, live)
+      const current = live ?? lastSnapshots.containers.get(target.name)
+      return current ? { kind: 'container', data: current, fromStack: target.fromStack } : null
+    }
+  }
+})
 
 const drawerTitle = computed(() => {
   if (!selected.value) return ''
   return selected.value.kind === 'server' ? selected.value.data.hostname : selected.value.data.name
 })
 const drawerBack = computed(() =>
-  selected.value?.kind === 'container' ? selected.value.fromStack : undefined,
+  selectedTarget.value?.kind === 'container' ? selectedTarget.value.fromStack : undefined,
 )
 
 function openStack(name: string) {
-  const stack = stacks.value.find((s) => s.name === name)
-  if (stack) selected.value = { kind: 'stack', data: stack }
+  selectedTarget.value = { kind: 'stack', name }
 }
 function openContainer(name: string, fromStack?: string) {
-  const container = containers.value.find((c) => c.name === name)
-  if (container) selected.value = { kind: 'container', data: container, fromStack }
+  selectedTarget.value = { kind: 'container', name, fromStack }
 }
 // The stack card stays highlighted while one of its containers is open in the drawer.
 function stackActive(name: string) {
-  const s = selected.value
-  return (s?.kind === 'stack' && s.data.name === name) || (s?.kind === 'container' && s.fromStack === name)
+  const t = selectedTarget.value
+  return (t?.kind === 'stack' && t.name === name) || (t?.kind === 'container' && t.fromStack === name)
 }
 </script>
 
@@ -280,8 +334,8 @@ function stackActive(name: string) {
           <h2>Server</h2>
           <ServerCard
             :server="server"
-            :active="selected?.kind === 'server'"
-            @select="selected = { kind: 'server', data: server }"
+            :active="selectedTarget?.kind === 'server'"
+            @select="selectedTarget = { kind: 'server' }"
           />
         </section>
 
@@ -292,8 +346,8 @@ function stackActive(name: string) {
               v-for="pool in filteredPools"
               :key="pool.name"
               :pool="pool"
-              :active="selected?.kind === 'pool' && selected.data.name === pool.name"
-              @select="selected = { kind: 'pool', data: pool }"
+              :active="selectedTarget?.kind === 'pool' && selectedTarget.name === pool.name"
+              @select="selectedTarget = { kind: 'pool', name: pool.name }"
             />
             <p v-if="pools.length === 0" class="empty">Waiting for data…</p>
           </div>
@@ -306,8 +360,8 @@ function stackActive(name: string) {
               v-for="dataset in filteredDatasets"
               :key="dataset.name"
               :dataset="dataset"
-              :active="selected?.kind === 'dataset' && selected.data.name === dataset.name"
-              @select="selected = { kind: 'dataset', data: dataset }"
+              :active="selectedTarget?.kind === 'dataset' && selectedTarget.name === dataset.name"
+              @select="selectedTarget = { kind: 'dataset', name: dataset.name }"
             />
             <p v-if="datasets.length === 0" class="empty">No datasets with a quota configured.</p>
           </div>
@@ -321,7 +375,7 @@ function stackActive(name: string) {
               :key="stack.name"
               :stack="stack"
               :active="stackActive(stack.name)"
-              @select="selected = { kind: 'stack', data: stack }"
+              @select="openStack(stack.name)"
             />
           </div>
         </section>
@@ -334,8 +388,8 @@ function stackActive(name: string) {
               v-for="container in filteredContainers"
               :key="container.name"
               :container="container"
-              :active="selected?.kind === 'container' && selected.data.name === container.name"
-              @select="selected = { kind: 'container', data: container }"
+              :active="selectedTarget?.kind === 'container' && selectedTarget.name === container.name"
+              @select="openContainer(container.name)"
             />
           </div>
         </section>
@@ -346,7 +400,7 @@ function stackActive(name: string) {
       :open="selected !== null"
       :title="drawerTitle"
       :back="drawerBack"
-      @close="selected = null"
+      @close="selectedTarget = null"
       @back="drawerBack && openStack(drawerBack)"
     >
       <template v-if="selected?.kind === 'stack'" #title-icon>
