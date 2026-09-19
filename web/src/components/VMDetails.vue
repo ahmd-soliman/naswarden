@@ -32,6 +32,28 @@ const statusBadge = computed(() => {
   return { label: props.vm.status, cls: 'badge--red' }
 })
 
+const typeBadge = computed(() => {
+  if (isTrueNAS.value) {
+    return {
+      label: 'TrueNAS · KVM',
+      cls: 'vm-type-pill--truenas-kvm',
+      desc: 'TrueNAS SCALE Virtualization (libvirt/QEMU)',
+    }
+  }
+  if (props.vm.is_vm) {
+    return {
+      label: 'Incus · KVM',
+      cls: 'vm-type-pill--incus-kvm',
+      desc: 'Incus Virtual Machine (KVM/QEMU)',
+    }
+  }
+  return {
+    label: 'Incus · LXC',
+    cls: 'vm-type-pill--incus-lxc',
+    desc: 'Incus System Container (LXC)',
+  }
+})
+
 // Filter config to interesting operational keys, excluding bulky scripts
 const filteredConfig = computed(() => {
   if (!props.vm.config) return []
@@ -48,20 +70,12 @@ const filteredConfig = computed(() => {
   <div class="drawer__section">
     <h3>Overview</h3>
     <div class="drawer__kv">
-      <span>Manager</span>
+      <span>Platform</span>
       <span class="vm-details-badge-wrap">
-        <span class="vm-manager-pill" :class="isTrueNAS ? 'vm-manager-pill--truenas' : 'vm-manager-pill--incus'">
-          {{ isTrueNAS ? 'TrueNAS' : 'Incus' }}
+        <span class="vm-type-pill" :class="typeBadge.cls">
+          {{ typeBadge.label }}
         </span>
-        <span class="drawer__dim-note">{{ isTrueNAS ? 'SCALE Virtualization' : 'Incus Daemon' }}</span>
-      </span>
-    </div>
-    <div class="drawer__kv">
-      <span>Type</span>
-      <span class="vm-details-badge-wrap">
-        <span class="vm-type-pill" :class="vm.is_vm ? 'vm-type-pill--kvm' : 'vm-type-pill--lxc'">
-          {{ vm.is_vm ? 'KVM Virtual Machine' : 'LXC Container' }}
-        </span>
+        <span class="drawer__dim-note">{{ typeBadge.desc }}</span>
       </span>
     </div>
     <div class="drawer__kv">
@@ -145,48 +159,33 @@ const filteredConfig = computed(() => {
   gap: 0.5rem;
 }
 
-.vm-manager-pill {
+.vm-type-pill {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.03em;
-  padding: 0.12rem 0.45rem;
+  padding: 0.12rem 0.48rem;
   border-radius: 4px;
   text-transform: uppercase;
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
-.vm-manager-pill--truenas {
-  background: rgba(168, 85, 247, 0.15);
+.vm-type-pill--truenas-kvm {
+  background: rgba(168, 85, 247, 0.12);
   color: #c084fc;
-  border-color: rgba(168, 85, 247, 0.35);
+  border-color: rgba(168, 85, 247, 0.3);
 }
 
-.vm-manager-pill--incus {
-  background: rgba(20, 184, 166, 0.15);
-  color: #2dd4bf;
-  border-color: rgba(20, 184, 166, 0.35);
-}
-
-.vm-type-pill {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  padding: 0.15rem 0.55rem;
-  border-radius: 4px;
-  text-transform: uppercase;
-  border: 1px solid var(--border);
-}
-
-.vm-type-pill--kvm {
-  background: rgba(6, 182, 212, 0.15);
+.vm-type-pill--incus-kvm {
+  background: rgba(6, 182, 212, 0.12);
   color: #22d3ee;
-  border-color: rgba(6, 182, 212, 0.35);
+  border-color: rgba(6, 182, 212, 0.3);
 }
 
-.vm-type-pill--lxc {
-  background: rgba(107, 114, 128, 0.15);
+.vm-type-pill--incus-lxc {
+  background: rgba(107, 114, 128, 0.12);
   color: #cbd5e1;
-  border-color: rgba(107, 114, 128, 0.3);
+  border-color: rgba(107, 114, 128, 0.28);
 }
 
 .drawer__dim-note {
