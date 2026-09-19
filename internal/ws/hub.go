@@ -127,6 +127,28 @@ func (h *Hub) remove(c *client) {
 	h.mu.Unlock()
 }
 
+// BroadcastNotice sends a payload to the connected clients without replacing
+// the cached state, so a transient problem message is not replayed to every
+// later client in place of real data. If there is no state at all yet (nothing
+// has ever been fetched), the notice is cached so a client that connects later
+// still learns why there is no data.
+func (h *Hub) BroadcastNotice(payload []byte) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.last == nil {
+		h.last = payload
+	}
+	for c := range h.clients {
+		select {
+		case c.send <- payload:
+		default:
+			slog.Warn("dropping slow websocket client")
+			delete(h.clients, c)
+			c.conn.Close()
+		}
+	}
+}
+
 // Broadcast queues the payload for every connected client and caches it so
 // clients connecting later get the current state immediately. It never
 // blocks on a client: one whose queue is full is too slow and is dropped.

@@ -143,3 +143,38 @@ func TestOriginCheck(t *testing.T) {
 		t.Fatal("cross-origin browser must be rejected")
 	}
 }
+
+func TestBroadcastNoticeDoesNotReplaceState(t *testing.T) {
+	h := NewHub()
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	// No state yet: a notice is cached so a late client still learns why.
+	h.BroadcastNotice([]byte("no-data-reason"))
+	a, _, err := dial(t, srv, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if got := read(t, a); got != "no-data-reason" {
+		t.Fatalf("a client with no state should get the notice, got %q", got)
+	}
+
+	// Real state replaces it, and later notices go to live clients only.
+	h.Broadcast([]byte("state"))
+	if got := read(t, a); got != "state" {
+		t.Fatalf("got %q", got)
+	}
+	h.BroadcastNotice([]byte("transient"))
+	if got := read(t, a); got != "transient" {
+		t.Fatalf("live client should see the notice, got %q", got)
+	}
+	b, _, err := dial(t, srv, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	if got := read(t, b); got != "state" {
+		t.Fatalf("a new client must get the last real state, not the notice: %q", got)
+	}
+}
