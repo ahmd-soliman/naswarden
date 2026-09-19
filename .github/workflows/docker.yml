@@ -25,6 +25,9 @@ jobs:
 
       - run: go vet ./...
 
+      - name: Grafana dashboard is valid JSON
+        run: jq empty deploy/grafana/*.json
+
       # Built with the job's own Go toolchain: the prebuilt release binaries
       # refuse a module newer than the Go they were built with.
       - name: golangci-lint
