@@ -324,4 +324,3 @@ func TestLiveTrueNASVMs(t *testing.T) {
 			v.Name, v.Manager, v.Status, v.OS, v.CPUCores, v.MemTotal, v.DiskPool, v.DiskUsed, v.DiskTotal, v.Passthrough, v.DisplayPort, v.WebPort, v.MAC, v.Bridge)
 	}
 }
-
