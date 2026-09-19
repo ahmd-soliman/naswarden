@@ -6,6 +6,21 @@ export interface Scan {
   errors: number
 }
 
+export interface VdevChild {
+  disk: string
+  status: string
+  read_errors: number
+  write_errors: number
+  checksum_errors: number
+}
+
+export interface Vdev {
+  name: string
+  type: string
+  status: string
+  children: VdevChild[]
+}
+
 export interface Pool {
   name: string
   status: string
@@ -15,6 +30,8 @@ export interface Pool {
   allocated: number
   free: number
   scan: Scan | null
+  fragmentation: string
+  vdevs: Vdev[]
 }
 
 export interface Dataset {
@@ -22,6 +39,24 @@ export interface Dataset {
   used: number
   quota: number
   quota_source: 'quota' | 'refquota'
+  mountpoint: string
+  compression: string
+  compress_ratio: string
+  recordsize: string
+  encrypted: boolean
+  used_by_snapshots: number
+}
+
+export interface Mount {
+  type: string // "bind" | "volume" | "tmpfs"
+  source: string
+  destination: string
+  read_only: boolean
+}
+
+export interface NetworkIP {
+  name: string
+  ip: string
 }
 
 export interface Container {
@@ -32,6 +67,19 @@ export interface Container {
   cpu_percent: number
   mem_used: number
   mem_limit: number
+  started_at: string
+  restart_policy: string
+  command: string
+  mounts: Mount[]
+  networks: NetworkIP[]
+  ports: string[]
+}
+
+export interface Interface {
+  name: string
+  link_state: string
+  speed: string
+  addresses: string[]
 }
 
 export interface ServerInfo {
@@ -44,6 +92,8 @@ export interface ServerInfo {
   load_percent_1: number
   load_percent_5: number
   load_percent_15: number
+  arc_bytes: number
+  interfaces: Interface[]
 }
 
 interface StateMessage {

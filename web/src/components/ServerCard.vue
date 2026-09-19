@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { ServerInfo } from '../composables/usePoolSocket'
 
 const props = defineProps<{ server: ServerInfo }>()
+defineEmits<{ select: [] }>()
 
 const memPercent = computed(() => {
   if (props.server.mem_total === 0) return 0
@@ -36,7 +37,7 @@ function formatUptime(seconds: number): string {
 </script>
 
 <template>
-  <div class="server-card">
+  <div class="server-card card--clickable" tabindex="0" role="button" @click="$emit('select')" @keydown.enter="$emit('select')" @keydown.space.prevent="$emit('select')">
     <div class="server-card__row">
       <div class="server-card__stat">
         <span class="server-card__label">Host</span>
