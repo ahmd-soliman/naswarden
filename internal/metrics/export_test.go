@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -159,4 +160,40 @@ func TestAlertAndReplicationSeriesDropWhenResolved(t *testing.T) {
 		t.Fatalf("a task changing state must replace its series, got %d", n)
 	}
 	UpdateReplications(nil)
+}
+
+func TestReplicationLastSuccessSurvivesAFailedRun(t *testing.T) {
+	lastSuccess = map[string]float64{}
+	done := int64(1_700_000_000)
+	UpdateReplications([]truenas.ReplicationTask{{ID: 1, Name: "bkp", TargetPool: "p", State: "FINISHED", JobState: "SUCCESS", TimeFinished: &done, Enabled: true}})
+	if v := gaugeValue(replicationLastSuccess.WithLabelValues("bkp")); v != float64(done) {
+		t.Fatalf("want %d, got %f", done, v)
+	}
+	failed := done + 3600
+	UpdateReplications([]truenas.ReplicationTask{{ID: 1, Name: "bkp", TargetPool: "p", State: "ERROR", JobState: "FAILED", TimeFinished: &failed, Enabled: true}})
+	if v := gaugeValue(replicationLastSuccess.WithLabelValues("bkp")); v != float64(done) {
+		t.Fatalf("a failed run must not overwrite the last success, got %f", v)
+	}
+	UpdateReplications(nil)
+	if n := seriesCount(t, replicationLastSuccess); n != 0 {
+		t.Fatalf("a removed task should drop its series, got %d", n)
+	}
+}
+
+func TestUpdateRefreshMarksStaleSources(t *testing.T) {
+	now := time.Unix(1_700_000_500, 0)
+	UpdateRefresh(now, []string{"docker"})
+	if v := gaugeValue(lastRefreshSuccess); v != float64(now.Unix()) {
+		t.Fatalf("timestamp: got %f", v)
+	}
+	if v := gaugeValue(sourceStale.WithLabelValues("docker")); v != 1 {
+		t.Fatalf("docker should be stale, got %f", v)
+	}
+	if v := gaugeValue(sourceStale.WithLabelValues("incus")); v != 0 {
+		t.Fatalf("incus should be fresh, got %f", v)
+	}
+	UpdateRefresh(now, nil)
+	if v := gaugeValue(sourceStale.WithLabelValues("docker")); v != 0 {
+		t.Fatalf("docker should recover, got %f", v)
+	}
 }
