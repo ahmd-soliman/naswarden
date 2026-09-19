@@ -42,11 +42,17 @@ function formatBytes(bytes: number): string {
 
     <template v-if="isRunning">
       <div class="container-card__stat">
-        <span>CPU</span>
+        <span class="container-card__stat-label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+          CPU
+        </span>
         <span>{{ container.cpu_percent.toFixed(1) }}%</span>
       </div>
       <div class="container-card__stat">
-        <span>Memory</span>
+        <span class="container-card__stat-label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="1"/><path d="M6 7v10M10 7v4M14 7v4M18 7v10"/></svg>
+          Memory
+        </span>
         <span>{{ formatBytes(container.mem_used) }} / {{ formatBytes(container.mem_limit) }}</span>
       </div>
       <div class="bar">
@@ -61,6 +67,7 @@ function formatBytes(bytes: number): string {
 .container-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--container);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   display: flex;
@@ -128,8 +135,22 @@ function formatBytes(bytes: number): string {
 .container-card__stat {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 0.8rem;
   color: var(--text-dim);
+}
+
+.container-card__stat-label {
+  display: flex;
+  align-items: center;
+}
+
+.metric-glyph {
+  width: 14px;
+  height: 14px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-right: 0.3rem;
 }
 
 .bar {
@@ -158,5 +179,11 @@ function formatBytes(bytes: number): string {
 .container-card__status {
   font-size: 0.8rem;
   color: var(--text-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar__fill {
+    transition: none;
+  }
 }
 </style>

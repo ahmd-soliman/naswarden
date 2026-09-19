@@ -51,7 +51,10 @@ function formatUptime(seconds: number): string {
         <span class="server-card__value">{{ formatUptime(server.uptime_seconds) }}</span>
       </div>
       <div class="server-card__stat">
-        <span class="server-card__label">CPU</span>
+        <span class="server-card__label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+          CPU
+        </span>
         <span class="server-card__value">{{ server.cpu_percent.toFixed(0) }}%</span>
       </div>
       <div class="server-card__stat">
@@ -64,7 +67,10 @@ function formatUptime(seconds: number): string {
 
     <div class="server-card__mem">
       <div class="server-card__mem-header">
-        <span class="server-card__label">Memory</span>
+        <span class="server-card__label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="1"/><path d="M6 7v10M10 7v4M14 7v4M18 7v10"/></svg>
+          Memory
+        </span>
         <span class="server-card__value">
           {{ formatBytes(server.mem_used) }} / {{ formatBytes(server.mem_total) }} ({{ memPercent }}%)
         </span>
@@ -104,6 +110,16 @@ function formatUptime(seconds: number): string {
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+}
+
+.metric-glyph {
+  width: 14px;
+  height: 14px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-right: 0.3rem;
 }
 
 .server-card__value {
@@ -144,5 +160,11 @@ function formatUptime(seconds: number): string {
 }
 .bar__fill.badge--red {
   background: #ef4444;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar__fill {
+    transition: none;
+  }
 }
 </style>

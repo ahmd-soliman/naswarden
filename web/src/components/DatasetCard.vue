@@ -49,6 +49,7 @@ function formatBytes(bytes: number): string {
 .dataset-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--dataset);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   display: flex;
@@ -125,5 +126,11 @@ function formatBytes(bytes: number): string {
 
 .dataset-card__source {
   opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar__fill {
+    transition: none;
+  }
 }
 </style>
