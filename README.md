@@ -1,10 +1,10 @@
-# naswarden
+# NasWarden
 
 A fast, glanceable, real-time monitoring dashboard and telemetry exporter for **TrueNAS SCALE** homelabs.
 
-`naswarden` was built to fill a critical gap: standard monitoring tools (`df`, `node-exporter`) only track per-*mountpoint* disk usage and are completely blind to **ZFS dataset-level quota and refquota limits**. On TrueNAS systems where app data, backups, and user home directories are capped using dataset properties, exhaustion happens silently without mountpoint-level alerts.
+**NasWarden** was built to fill a critical gap: standard monitoring tools (`df`, `node-exporter`) only track per-*mountpoint* disk usage and are completely blind to **ZFS dataset-level quota and refquota limits**. On TrueNAS systems where app data, backups, and user home directories are capped using dataset properties, exhaustion happens silently without mountpoint-level alerts.
 
-`naswarden` monitors dataset quota utilization in real time, and expands into a unified, single-page operational board covering the entire host:
+NasWarden monitors dataset quota utilization in real time, and expands into a unified, single-page operational board covering the entire host:
 - **ZFS Dataset Quotas & Storage Pools**
 - **Hardware Telemetry & Host Pressure**
 - **Docker Compose Stacks & Container Health**
