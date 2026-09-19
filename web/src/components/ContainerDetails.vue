@@ -28,6 +28,8 @@ function formatStartedAt(iso: string): string {
     </div>
     <div class="drawer__kv"><span>Started</span><span>{{ formatStartedAt(container.started_at) }}</span></div>
     <div v-if="container.state === 'exited'" class="drawer__kv"><span>Exit code</span><span>{{ container.exit_code }}</span></div>
+    <div v-if="container.oom_killed" class="drawer__kv"><span>OOM killed</span><span class="badge badge--red">Yes</span></div>
+    <div v-if="container.optional" class="drawer__kv"><span>Optional</span><span>Yes (naswarden.optional)</span></div>
     <div class="drawer__kv"><span>Restart policy</span><span>{{ container.restart_policy || 'none' }}</span></div>
     <div class="drawer__kv"><span>Command</span><span>{{ container.command || '--' }}</span></div>
   </div>

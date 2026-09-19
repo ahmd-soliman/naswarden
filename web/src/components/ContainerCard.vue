@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Container } from '../composables/usePoolSocket'
+import { memberBadge } from '../composables/useStacks'
 
 const props = defineProps<{ container: Container; active?: boolean }>()
 defineEmits<{ select: [] }>()
 
 const isRunning = computed(() => props.container.state === 'running')
+const badge = computed(() => memberBadge(props.container))
 
 const memPercent = computed(() => {
   if (!isRunning.value || props.container.mem_limit === 0) return 0
@@ -42,8 +44,8 @@ function formatBytes(bytes: number): string {
   >
     <div class="container-card__header">
       <span class="container-card__name" :title="container.name">{{ container.name }}</span>
-      <span class="badge" :class="isRunning ? 'badge--green' : 'badge--gray'">
-        {{ container.state }}
+      <span class="badge" :class="badge.cls">
+        {{ badge.label }}
       </span>
     </div>
 
