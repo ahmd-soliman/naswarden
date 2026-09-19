@@ -6,7 +6,7 @@ import { matchesDisk } from './search'
 
 const disk = (o: Partial<Disk> = {}): Disk => ({
   name: 'sda', model: 'ST24000NM000C-3WD103', serial: 'ZXA25E2K', size: 24e12, type: 'HDD', rotation_rate: 7200,
-  pool: 'P1', status: 'ONLINE', standby: false, temp_c: 49, read_errors: 0, write_errors: 0, checksum_errors: 0, ...o,
+  pool: 'tank', status: 'ONLINE', standby: false, temp_c: 49, read_errors: 0, write_errors: 0, checksum_errors: 0, ...o,
 })
 
 describe('tempTone', () => {
@@ -74,7 +74,7 @@ describe('formatCapacity', () => {
 
 describe('matchesDisk', () => {
   it('matches name, model, serial, pool and type', () => {
-    for (const q of ['sda', 'st24000', 'zxa25', 'p1', 'hdd']) expect(matchesDisk(disk(), q)).toBe(true)
+    for (const q of ['sda', 'st24000', 'zxa25', 'tank', 'hdd']) expect(matchesDisk(disk(), q)).toBe(true)
     expect(matchesDisk(disk(), 'samsung')).toBe(false)
     expect(matchesDisk(disk(), '')).toBe(true)
   })

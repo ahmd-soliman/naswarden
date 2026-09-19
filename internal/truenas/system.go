@@ -63,7 +63,7 @@ type Interface struct {
 	TxKbps    *float64 `json:"tx_kbps,omitempty"`
 	LinkState string   `json:"link_state"` // "LINK_STATE_UP" / "LINK_STATE_DOWN"
 	Speed     string   `json:"speed"`      // e.g. "1000Mb/s Twisted Pair"
-	Addresses []string `json:"addresses"`  // e.g. "192.168.8.100/24"
+	Addresses []string `json:"addresses"`  // e.g. "192.168.1.10/24"
 }
 
 type systemInfoResponse struct {

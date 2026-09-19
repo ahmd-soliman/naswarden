@@ -24,28 +24,28 @@ func TestDetectOS(t *testing.T) {
 		{
 			name:        "Windows 10 22H2 ISO with virtio drivers",
 			vmName:      "win",
-			cdromPaths:  []string{"/mnt/P1/main/misc/virtio-win-0.1.266.iso", "/mnt/P1/main/misc/Win10_22H2_EnglishInternational_x64v1.iso"},
+			cdromPaths:  []string{"/mnt/tank/main/misc/virtio-win-0.1.266.iso", "/mnt/tank/main/misc/Win10_22H2_EnglishInternational_x64v1.iso"},
 			description: "",
 			want:        "Windows 10 (22H2)",
 		},
 		{
 			name:        "Windows 11 23H2 ISO",
 			vmName:      "win11-workstation",
-			cdromPaths:  []string{"/mnt/P1/Win11_23H2_English.iso"},
+			cdromPaths:  []string{"/mnt/tank/Win11_23H2_English.iso"},
 			description: "",
 			want:        "Windows 11 (23H2)",
 		},
 		{
 			name:        "Ubuntu 24.04 ISO",
 			vmName:      "ubuntu-vm",
-			cdromPaths:  []string{"/mnt/P1/ubuntu-24.04-live-server-amd64.iso"},
+			cdromPaths:  []string{"/mnt/tank/ubuntu-24.04-live-server-amd64.iso"},
 			description: "",
 			want:        "Ubuntu 24.04",
 		},
 		{
 			name:        "Debian 12 ISO",
 			vmName:      "deb",
-			cdromPaths:  []string{"/mnt/P1/debian-12.5.0-amd64-netinst.iso"},
+			cdromPaths:  []string{"/mnt/tank/debian-12.5.0-amd64-netinst.iso"},
 			description: "",
 			want:        "Debian 12",
 		},
@@ -159,7 +159,7 @@ func TestListVMsMock(t *testing.T) {
 					"id": 39,
 					"attributes": {
 						"dtype": "DISK",
-						"path": "/dev/zvol/P2/vms/winvm-u6hdxw",
+						"path": "/dev/zvol/fast/vms/winvm",
 						"type": "AHCI"
 					}
 				},
@@ -177,7 +177,7 @@ func TestListVMsMock(t *testing.T) {
 					"id": 41,
 					"attributes": {
 						"dtype": "CDROM",
-						"path": "/mnt/P1/main/misc/Win10_22H2_EnglishInternational_x64v1.iso"
+						"path": "/mnt/tank/main/misc/Win10_22H2_EnglishInternational_x64v1.iso"
 					}
 				},
 				{
@@ -193,7 +193,7 @@ func TestListVMsMock(t *testing.T) {
 
 	mockZvolQueryJSON := `[
 		{
-			"name": "P2/vms/winvm-u6hdxw",
+			"name": "fast/vms/winvm",
 			"volsize": {"parsed": 1099511627776},
 			"used": {"parsed": 130434760704}
 		}
@@ -287,7 +287,7 @@ func TestListVMsMock(t *testing.T) {
 	if win.DisplayPort != 5901 || win.WebPort != 5902 {
 		t.Errorf("expected display ports 5901 / 5902, got %d / %d", win.DisplayPort, win.WebPort)
 	}
-	if win.DiskPool != "P2" || win.DiskTotal != 1099511627776 || win.DiskUsed != 130434760704 {
+	if win.DiskPool != "fast" || win.DiskTotal != 1099511627776 || win.DiskUsed != 130434760704 {
 		t.Errorf("unexpected disk stats: pool=%s, total=%d, used=%d", win.DiskPool, win.DiskTotal, win.DiskUsed)
 	}
 	if len(win.Passthrough) != 1 || win.Passthrough[0] != "NVIDIA GeForce GTX 1050 Ti" {

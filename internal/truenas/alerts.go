@@ -16,7 +16,7 @@ type Alert struct {
 	Level     string `json:"level"`     // CRITICAL, ERROR, WARNING, INFO
 	Source    string `json:"source"`    // e.g. Quota, Replication, System, Network
 	Klass     string `json:"klass"`     // e.g. QuotaWarning, ReplicationSuccess
-	Formatted string `json:"formatted"` // e.g. "Quota exceeded on dataset S_BKP/P1/main. Used 82.62% (3.72 TiB of 4.5 TiB)."
+	Formatted string `json:"formatted"` // e.g. "Quota exceeded on dataset backup/tank/main. Used 82.62% (3.72 TiB of 4.5 TiB)."
 	Text      string `json:"text"`
 	Datetime  int64  `json:"datetime"` // Unix seconds
 	Dismissed bool   `json:"dismissed"`

@@ -19,7 +19,7 @@ type Instance struct {
 	MemTotal    int64             `json:"mem_total"`              // Memory limit or total bytes allocated
 	DiskUsed    int64             `json:"disk_used"`              // Root disk zvol bytes used
 	DiskTotal   int64             `json:"disk_total"`             // Root disk zvol capacity bytes
-	DiskPool    string            `json:"disk_pool"`              // ZFS pool backing root disk (e.g. "P2")
+	DiskPool    string            `json:"disk_pool"`              // ZFS pool backing root disk (e.g. "fast")
 	IPv4        []string          `json:"ipv4"`                   // Guest LAN IPv4 addresses
 	MAC         string            `json:"mac,omitempty"`          // Primary network MAC address
 	Bridge      string            `json:"bridge,omitempty"`       // Parent network bridge (e.g. "br0")
