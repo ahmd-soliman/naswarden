@@ -22,15 +22,15 @@ func gaugeValue(g prometheus.Gauge) float64 {
 
 func TestUpdateDatasets(t *testing.T) {
 	datasets := []truenas.Dataset{
-		{Name: "P1/media", Used: 1000, Quota: 5000},
-		{Name: "P2/backup", Used: 2500, Quota: 3000},
+		{Name: "tank/media", Used: 1000, Quota: 5000},
+		{Name: "fast/backup", Used: 2500, Quota: 3000},
 	}
 	UpdateDatasets(datasets)
 
-	if val := gaugeValue(datasetUsedBytes.WithLabelValues("P1/media")); val != 1000 {
+	if val := gaugeValue(datasetUsedBytes.WithLabelValues("tank/media")); val != 1000 {
 		t.Errorf("expected 1000, got %f", val)
 	}
-	if val := gaugeValue(datasetQuotaBytes.WithLabelValues("P1/media")); val != 5000 {
+	if val := gaugeValue(datasetQuotaBytes.WithLabelValues("tank/media")); val != 5000 {
 		t.Errorf("expected 5000, got %f", val)
 	}
 
@@ -39,21 +39,21 @@ func TestUpdateDatasets(t *testing.T) {
 
 func TestUpdatePools(t *testing.T) {
 	pools := []truenas.Pool{
-		{Name: "P1", Healthy: true, Allocated: 500000, Size: 1000000},
-		{Name: "S_BKP", Healthy: false, Allocated: 200000, Size: 800000},
+		{Name: "tank", Healthy: true, Allocated: 500000, Size: 1000000},
+		{Name: "backup", Healthy: false, Allocated: 200000, Size: 800000},
 	}
 	UpdatePools(pools)
 
-	if val := gaugeValue(poolAllocatedBytes.WithLabelValues("P1")); val != 500000 {
+	if val := gaugeValue(poolAllocatedBytes.WithLabelValues("tank")); val != 500000 {
 		t.Errorf("expected 500000, got %f", val)
 	}
-	if val := gaugeValue(poolSizeBytes.WithLabelValues("P1")); val != 1000000 {
+	if val := gaugeValue(poolSizeBytes.WithLabelValues("tank")); val != 1000000 {
 		t.Errorf("expected 1000000, got %f", val)
 	}
-	if val := gaugeValue(poolHealthy.WithLabelValues("P1")); val != 1.0 {
+	if val := gaugeValue(poolHealthy.WithLabelValues("tank")); val != 1.0 {
 		t.Errorf("expected 1.0 healthy, got %f", val)
 	}
-	if val := gaugeValue(poolHealthy.WithLabelValues("S_BKP")); val != 0.0 {
+	if val := gaugeValue(poolHealthy.WithLabelValues("backup")); val != 0.0 {
 		t.Errorf("expected 0.0 healthy for degraded pool, got %f", val)
 	}
 }
@@ -134,11 +134,11 @@ func TestUpdateAlerts(t *testing.T) {
 
 func TestUpdateReplications(t *testing.T) {
 	tasks := []truenas.ReplicationTask{
-		{ID: 24, Name: "P1_BKP", TargetPool: "S_BKP", State: "FINISHED", JobState: "SUCCESS", Enabled: true},
+		{ID: 24, Name: "tank-backup", TargetPool: "backup", State: "FINISHED", JobState: "SUCCESS", Enabled: true},
 	}
 	UpdateReplications(tasks)
 
-	if val := gaugeValue(replicationTaskStatus.WithLabelValues("24", "P1_BKP", "S_BKP", "FINISHED", "SUCCESS")); val != 1.0 {
+	if val := gaugeValue(replicationTaskStatus.WithLabelValues("24", "tank-backup", "backup", "FINISHED", "SUCCESS")); val != 1.0 {
 		t.Errorf("expected 1.0, got %f", val)
 	}
 }

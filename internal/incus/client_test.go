@@ -145,7 +145,7 @@ func TestListInstances(t *testing.T) {
 				Devices: map[string]map[string]interface{}{
 					"root": {
 						"type": "disk",
-						"pool": "P2",
+						"pool": "fast",
 						"size": "20GiB",
 					},
 					"eth0": {
@@ -167,7 +167,7 @@ func TestListInstances(t *testing.T) {
 						"eth0": {
 							Hwaddr: "02:00:16:bc:19:4c",
 							Addresses: []rawAddress{
-								{Family: "inet", Address: "192.168.8.140", Scope: "global"},
+								{Family: "inet", Address: "192.168.1.140", Scope: "global"},
 							},
 						},
 					},
@@ -238,8 +238,8 @@ func TestListInstances(t *testing.T) {
 	if vm.Kernel != "6.8.0-139-generic" {
 		t.Errorf("expected Kernel '6.8.0-139-generic', got %q", vm.Kernel)
 	}
-	if vm.DiskPool != "P2" {
-		t.Errorf("expected DiskPool 'P2', got %q", vm.DiskPool)
+	if vm.DiskPool != "fast" {
+		t.Errorf("expected DiskPool 'fast', got %q", vm.DiskPool)
 	}
 	if vm.Bridge != "br0" {
 		t.Errorf("expected Bridge 'br0', got %q", vm.Bridge)
@@ -247,8 +247,8 @@ func TestListInstances(t *testing.T) {
 	if vm.MAC != "02:00:16:bc:19:4c" {
 		t.Errorf("expected MAC '02:00:16:bc:19:4c', got %q", vm.MAC)
 	}
-	if len(vm.IPv4) != 1 || vm.IPv4[0] != "192.168.8.140" {
-		t.Errorf("expected IPv4 ['192.168.8.140'], got %v", vm.IPv4)
+	if len(vm.IPv4) != 1 || vm.IPv4[0] != "192.168.1.140" {
+		t.Errorf("expected IPv4 ['192.168.1.140'], got %v", vm.IPv4)
 	}
 	if !vm.AutoStart {
 		t.Errorf("expected AutoStart true, got false")

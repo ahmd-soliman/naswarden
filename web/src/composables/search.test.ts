@@ -15,9 +15,9 @@ describe('search', () => {
     expect(matchesPool({ name: 'Tank' } as never, 'zz')).toBe(false)
   })
   it('a stack matches through its members', () => {
-    const [s] = buildStacks([cont({ name: 'mongo', stack: 'komodo' }), cont({ name: 'core', stack: 'komodo' })])
-    expect(matchesStack(s, 'mongo')).toBe(true)
-    expect(matchesStack(s, 'komodo')).toBe(true)
+    const [s] = buildStacks([cont({ name: 'postgres', stack: 'blog' }), cont({ name: 'web', stack: 'blog' })])
+    expect(matchesStack(s, 'postgres')).toBe(true)
+    expect(matchesStack(s, 'blog')).toBe(true)
     expect(matchesStack(s, 'nope')).toBe(false)
   })
   it('a container matches on stack and image too', () => {

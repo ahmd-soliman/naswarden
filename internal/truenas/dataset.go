@@ -86,7 +86,7 @@ func ListDatasets(ctx context.Context, c *Client) ([]Dataset, error) {
 
 		// `used` includes snapshot space; `refquota` deliberately does not
 		// (that's the whole point of choosing refquota over quota -- see
-		// P1/TimeMachine/mac2, where heavy snapshot churn from sparsebundle
+		// tank/TimeMachine/mac, where heavy snapshot churn from sparsebundle
 		// rewrites pushes `used` well past `refquota` while the dataset's
 		// actual live data, `usedbydataset` (ZFS's `referenced`, which
 		// pool.dataset.query doesn't expose under that name), stays
