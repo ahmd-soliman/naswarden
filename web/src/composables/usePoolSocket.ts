@@ -102,6 +102,7 @@ export interface ServerInfo {
 
 interface StateMessage {
   type: 'state'
+  updated_at?: number // unix seconds the backend took this snapshot
   server: ServerInfo | null
   pools: Pool[]
   datasets: Dataset[]
@@ -119,6 +120,7 @@ export function usePoolSocket() {
   const datasets = ref<Dataset[]>([])
   const containers = ref<Container[]>([])
   const connected = ref(false)
+  const updatedAt = ref<number | null>(null)
 
   let socket: WebSocket | null = null
   let retryDelayMs = 1000
@@ -139,6 +141,7 @@ export function usePoolSocket() {
         pools.value = msg.pools
         datasets.value = msg.datasets
         containers.value = msg.containers ?? []
+        updatedAt.value = msg.updated_at ?? null
       }
     }
 
@@ -156,5 +159,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { server, pools, datasets, containers, connected }
+  return { server, pools, datasets, containers, connected, updatedAt }
 }

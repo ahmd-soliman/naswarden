@@ -12,7 +12,31 @@ import ContainerDetails from './components/ContainerDetails.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
 import type { Container, Dataset, Pool, ServerInfo } from './composables/usePoolSocket'
 
-const { server, pools, datasets, containers, connected } = usePoolSocket()
+const { server, pools, datasets, containers, connected, updatedAt } = usePoolSocket()
+
+// Data freshness. The backend refreshes every 60s; if it stops getting data
+// (TrueNAS unreachable, refresh failing) it broadcasts nothing, so a browser
+// that is still connected would keep showing old numbers as "live". Show the
+// snapshot's age and call it stale after 2.5 missed refresh intervals.
+const REFRESH_SECONDS = 60
+const STALE_AFTER_SECONDS = REFRESH_SECONDS * 2.5
+const nowMs = ref(Date.now())
+let clock: ReturnType<typeof setInterval> | undefined
+onMounted(() => (clock = setInterval(() => (nowMs.value = Date.now()), 1000)))
+onBeforeUnmount(() => clearInterval(clock))
+
+const ageSeconds = computed(() =>
+  updatedAt.value === null ? null : Math.max(0, Math.floor(nowMs.value / 1000 - updatedAt.value)),
+)
+const isStale = computed(() => connected.value && ageSeconds.value !== null && ageSeconds.value > STALE_AFTER_SECONDS)
+const connLabel = computed(() => (!connected.value ? 'reconnecting…' : isStale.value ? 'stale' : 'live'))
+const ageLabel = computed(() => {
+  const s = ageSeconds.value
+  if (s === null) return ''
+  if (s < 60) return `updated ${s}s ago`
+  if (s < 3600) return `updated ${Math.floor(s / 60)}m ago`
+  return `updated ${Math.floor(s / 3600)}h ago`
+})
 
 // Highest utilization first -- the datasets closest to trouble should be
 // the first thing you see, not buried alphabetically.
@@ -101,9 +125,13 @@ const drawerTitle = computed(() => {
         <img src="/favicon.svg" alt="" class="app__logo" />
         <h1>naswarden</h1>
       </div>
-      <span class="conn" :class="{ 'conn--live': connected }">
-        {{ connected ? 'live' : 'reconnecting…' }}
-      </span>
+      <div class="conn-group">
+        <span class="conn__age">{{ ageLabel }}</span>
+        <!-- only the state is announced to screen readers, not the ticking age -->
+        <span class="conn" :class="{ 'conn--live': connected && !isStale, 'conn--stale': isStale }" role="status">
+          {{ connLabel }}
+        </span>
+      </div>
     </header>
 
     <div class="app__layout">
@@ -249,6 +277,22 @@ const drawerTitle = computed(() => {
   font-size: 1.5rem;
   font-family: ui-monospace, monospace;
   margin: 0;
+}
+
+.conn-group {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.conn__age {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.conn.conn--stale {
+  color: var(--warn-t);
 }
 
 .conn {
