@@ -227,60 +227,54 @@ type SelectionTarget =
 
 const selectedTarget = ref<SelectionTarget | null>(null)
 
-// Cache the last seen object per entity so if an entity is briefly omitted
-// during a refresh cycle, the drawer does not abruptly flicker or unmount.
-const lastSnapshots = {
-  server: null as ServerInfo | null,
-  pools: new Map<string, Pool>(),
-  datasets: new Map<string, Dataset>(),
-  vms: new Map<string, VM>(),
-  stacks: new Map<string, Stack>(),
-  containers: new Map<string, Container>(),
+type SelectedData = Selected['data']
+
+const targetKey = (t: SelectionTarget) => (t.kind === 'server' ? 'server' : `${t.kind}:${t.name}`)
+
+function findLive(t: SelectionTarget): SelectedData | undefined {
+  switch (t.kind) {
+    case 'server':
+      return server.value ?? undefined
+    case 'pool':
+      return pools.value.find((p) => p.name === t.name)
+    case 'dataset':
+      return datasets.value.find((d) => d.name === t.name)
+    case 'vm':
+      return vms.value.find((v) => v.name === t.name)
+    case 'stack':
+      return stacks.value.find((s) => s.name === t.name)
+    case 'container':
+      return containers.value.find((c) => c.name === t.name)
+  }
 }
 
-// Live-updating selected view: resolves dynamically against the latest
-// reactive websocket telemetry so the open drawer updates in real time.
-const selected = computed<Selected | null>(() => {
-  const target = selectedTarget.value
-  if (!target) return null
+// The last live object of the open target, so that if it is briefly missing
+// from one refresh the drawer does not flicker or unmount. Kept by a
+// watcher rather than inside the computed below, which must stay pure.
+let lastLive: { key: string; data: SelectedData } | null = null
+watch(
+  [selectedTarget, server, pools, datasets, vms, stacks, containers],
+  () => {
+    const t = selectedTarget.value
+    if (!t) {
+      lastLive = null
+      return
+    }
+    const live = findLive(t)
+    if (live) lastLive = { key: targetKey(t), data: live }
+    else if (lastLive?.key !== targetKey(t)) lastLive = null
+  },
+  { flush: 'sync' },
+)
 
-  switch (target.kind) {
-    case 'server': {
-      if (server.value) lastSnapshots.server = server.value
-      const current = server.value ?? lastSnapshots.server
-      return current ? { kind: 'server', data: current } : null
-    }
-    case 'pool': {
-      const live = pools.value.find((p) => p.name === target.name)
-      if (live) lastSnapshots.pools.set(target.name, live)
-      const current = live ?? lastSnapshots.pools.get(target.name)
-      return current ? { kind: 'pool', data: current } : null
-    }
-    case 'dataset': {
-      const live = datasets.value.find((d) => d.name === target.name)
-      if (live) lastSnapshots.datasets.set(target.name, live)
-      const current = live ?? lastSnapshots.datasets.get(target.name)
-      return current ? { kind: 'dataset', data: current } : null
-    }
-    case 'vm': {
-      const live = vms.value.find((v) => v.name === target.name)
-      if (live) lastSnapshots.vms.set(target.name, live)
-      const current = live ?? lastSnapshots.vms.get(target.name)
-      return current ? { kind: 'vm', data: current } : null
-    }
-    case 'stack': {
-      const live = stacks.value.find((s) => s.name === target.name)
-      if (live) lastSnapshots.stacks.set(target.name, live)
-      const current = live ?? lastSnapshots.stacks.get(target.name)
-      return current ? { kind: 'stack', data: current } : null
-    }
-    case 'container': {
-      const live = containers.value.find((c) => c.name === target.name)
-      if (live) lastSnapshots.containers.set(target.name, live)
-      const current = live ?? lastSnapshots.containers.get(target.name)
-      return current ? { kind: 'container', data: current, fromStack: target.fromStack } : null
-    }
-  }
+// Live-updating selected view: resolves against the latest reactive
+// websocket telemetry so the open drawer updates in real time.
+const selected = computed<Selected | null>(() => {
+  const t = selectedTarget.value
+  if (!t) return null
+  const data = findLive(t) ?? (lastLive?.key === targetKey(t) ? lastLive.data : undefined)
+  if (!data) return null
+  return { kind: t.kind, data, fromStack: t.kind === 'container' ? t.fromStack : undefined } as Selected
 })
 
 const drawerTitle = computed(() => {
@@ -341,7 +335,8 @@ function stackActive(name: string) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg>
           Server
         </button>
-        <button class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="activeSection === 'pools' ? 'true' : undefined"
+        <button
+class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="activeSection === 'pools' ? 'true' : undefined"
           @click="selectSection('pools')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
           Pools
@@ -406,7 +401,7 @@ function stackActive(name: string) {
         <p v-if="q && resultCount === 0" class="empty">No matches for “{{ query.trim() }}”.</p>
         <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
 
-        <section v-if="server" data-section="server" v-show="activeSection === 'all' || activeSection === 'server'">
+        <section v-if="server" v-show="activeSection === 'all' || activeSection === 'server'" data-section="server">
           <h2>Server</h2>
           <ServerCard
             :server="server"
@@ -415,7 +410,7 @@ function stackActive(name: string) {
           />
         </section>
 
-        <section data-section="pools" v-show="sectionVisible('pools')">
+        <section v-show="sectionVisible('pools')" data-section="pools">
           <h2>Pools</h2>
           <div class="grid">
             <PoolCard
@@ -429,7 +424,7 @@ function stackActive(name: string) {
           </div>
         </section>
 
-        <section data-section="datasets" v-show="sectionVisible('datasets')">
+        <section v-show="sectionVisible('datasets')" data-section="datasets">
           <h2>Dataset quotas</h2>
           <div class="grid grid--datasets">
             <DatasetCard
@@ -443,7 +438,7 @@ function stackActive(name: string) {
           </div>
         </section>
 
-        <section v-if="hasVMs" data-section="vms" v-show="sectionVisible('vms')">
+        <section v-if="hasVMs" v-show="sectionVisible('vms')" data-section="vms">
           <h2>Virtual Machines & Containers</h2>
           <div class="grid">
             <VMCard
@@ -456,7 +451,7 @@ function stackActive(name: string) {
           </div>
         </section>
 
-        <section v-if="hasStacks" data-section="stacks" v-show="sectionVisible('stacks')">
+        <section v-if="hasStacks" v-show="sectionVisible('stacks')" data-section="stacks">
           <h2>Stacks</h2>
           <div class="grid">
             <StackCard
@@ -470,7 +465,7 @@ function stackActive(name: string) {
         </section>
 
         <!-- Stacks is the default landing view, so the flat list lives on its own tab -->
-        <section v-if="hasContainers" data-section="containers" v-show="sectionVisible('containers')">
+        <section v-if="hasContainers" v-show="sectionVisible('containers')" data-section="containers">
           <h2>Containers</h2>
           <div class="grid grid--datasets">
             <ContainerCard
