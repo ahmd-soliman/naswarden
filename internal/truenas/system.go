@@ -29,6 +29,24 @@ type ServerInfo struct {
 	LoadPercent1  float64 `json:"load_percent_1"`
 	LoadPercent5  float64 `json:"load_percent_5"`
 	LoadPercent15 float64 `json:"load_percent_15"`
+	// ArcBytes is the ZFS ARC (Adaptive Replacement Cache) size -- often
+	// the dominant chunk of "used" memory on a NAS, and the usual reason
+	// memory usage looks alarmingly high when it's actually just
+	// reclaimable disk cache, not an app leak. Shown separately so that
+	// distinction is visible instead of buried inside a single number.
+	ArcBytes   int64       `json:"arc_bytes"`
+	Interfaces []Interface `json:"interfaces"`
+}
+
+// Interface is a network interface's current link state and addresses --
+// confirmed against a live TrueNAS box via `midclt call interface.query`
+// (method name has no "network." prefix on SCALE 25.10.7, despite older
+// docs suggesting otherwise).
+type Interface struct {
+	Name      string   `json:"name"`
+	LinkState string   `json:"link_state"` // "LINK_STATE_UP" / "LINK_STATE_DOWN"
+	Speed     string   `json:"speed"`      // e.g. "1000Mb/s Twisted Pair"
+	Addresses []string `json:"addresses"`  // e.g. "192.168.8.100/24"
 }
 
 type systemInfoResponse struct {
@@ -50,6 +68,24 @@ type reportingGraph struct {
 	Data   [][]json.Number `json:"data"`
 }
 
+// rawInterface mirrors interface.query's response shape -- confirmed
+// against a live box. Only INET/INET6 aliases under `state` are real
+// addresses; the top-level `aliases` field is the *configured* (not
+// necessarily active) address list, which is why state.aliases is used
+// instead.
+type rawInterface struct {
+	Name  string `json:"name"`
+	State struct {
+		LinkState          string `json:"link_state"`
+		ActiveMediaSubtype string `json:"active_media_subtype"`
+		Aliases            []struct {
+			Type    string `json:"type"`
+			Address string `json:"address"`
+			Netmask int    `json:"netmask"`
+		} `json:"aliases"`
+	} `json:"state"`
+}
+
 // GetServerInfo fetches a fresh snapshot of host resource usage.
 func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 	raw, err := c.Call(ctx, "system.info", []any{})
@@ -65,6 +101,7 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 		map[string]string{"name": "cpu"},
 		map[string]string{"name": "memory"},
 		map[string]string{"name": "load"},
+		map[string]string{"name": "arcsize"},
 	}
 	opts := map[string]any{"unit": "HOUR", "page": 1}
 	raw, err = c.Call(ctx, "reporting.netdata_get_data", []any{graphs, opts})
@@ -110,7 +147,30 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 			if v, ok := column(g.Legend, last, "longterm"); ok {
 				info.LoadPercent15 = v / float64(sysInfo.Cores) * 100
 			}
+		case "arcsize":
+			if v, ok := column(g.Legend, last, "size"); ok {
+				info.ArcBytes = int64(v)
+			}
 		}
+	}
+
+	raw, err = c.Call(ctx, "interface.query", []any{})
+	if err != nil {
+		return nil, fmt.Errorf("interface.query: %w", err)
+	}
+	var rawIfaces []rawInterface
+	if err := json.Unmarshal(raw, &rawIfaces); err != nil {
+		return nil, fmt.Errorf("interface.query: decode: %w", err)
+	}
+	for _, ri := range rawIfaces {
+		if ri.State.LinkState != "LINK_STATE_UP" {
+			continue // down/unused interfaces are noise on an overview page
+		}
+		iface := Interface{Name: ri.Name, LinkState: ri.State.LinkState, Speed: ri.State.ActiveMediaSubtype}
+		for _, a := range ri.State.Aliases {
+			iface.Addresses = append(iface.Addresses, fmt.Sprintf("%s/%d", a.Address, a.Netmask))
+		}
+		info.Interfaces = append(info.Interfaces, iface)
 	}
 
 	return info, nil

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { Container } from '../composables/usePoolSocket'
 
 const props = defineProps<{ container: Container }>()
+defineEmits<{ select: [] }>()
 
 const isRunning = computed(() => props.container.state === 'running')
 
@@ -30,7 +31,15 @@ function formatBytes(bytes: number): string {
 </script>
 
 <template>
-  <div class="container-card" :class="{ 'container-card--stopped': !isRunning }">
+  <div
+    class="container-card card--clickable"
+    :class="{ 'container-card--stopped': !isRunning }"
+    tabindex="0"
+    role="button"
+    @click="$emit('select')"
+    @keydown.enter="$emit('select')"
+    @keydown.space.prevent="$emit('select')"
+  >
     <div class="container-card__header">
       <span class="container-card__name">{{ container.name }}</span>
       <span class="badge" :class="isRunning ? 'badge--green' : 'badge--gray'">

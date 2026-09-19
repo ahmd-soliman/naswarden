@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -39,13 +41,69 @@ type containerSummary struct {
 // usage. CPUPercent/MemUsed/MemLimit are zero for non-running containers
 // (the stats endpoint only returns live data for running ones).
 type Container struct {
-	Name       string  `json:"name"`
-	Image      string  `json:"image"`
-	State      string  `json:"state"`
-	Status     string  `json:"status"`
-	CPUPercent float64 `json:"cpu_percent"`
-	MemUsed    int64   `json:"mem_used"`
-	MemLimit   int64   `json:"mem_limit"`
+	Name          string      `json:"name"`
+	Image         string      `json:"image"`
+	State         string      `json:"state"`
+	Status        string      `json:"status"`
+	CPUPercent    float64     `json:"cpu_percent"`
+	MemUsed       int64       `json:"mem_used"`
+	MemLimit      int64       `json:"mem_limit"`
+	StartedAt     string      `json:"started_at"`
+	RestartPolicy string      `json:"restart_policy"`
+	Command       string      `json:"command"`
+	Mounts        []Mount     `json:"mounts"`
+	Networks      []NetworkIP `json:"networks"`
+	Ports         []string    `json:"ports"`
+}
+
+// Mount is one bind mount or named volume attached to a container --
+// field names confirmed against a real container's inspect response
+// through the live read-only proxy, not assumed. Type is Docker's own
+// "bind" / "volume" / "tmpfs" distinction, kept as-is rather than
+// collapsed, since a bind mount (host path) and a named volume
+// (Docker-managed storage) have different operational implications.
+type Mount struct {
+	Type        string `json:"type"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	ReadOnly    bool   `json:"read_only"`
+}
+
+type NetworkIP struct {
+	Name string `json:"name"`
+	IP   string `json:"ip"`
+}
+
+// inspectResponse covers only the fields naswarden's detail drawer needs
+// from GET /containers/{id}/json -- confirmed against the real Docker
+// Engine API on the live NAS through the actual read-only proxy.
+type inspectResponse struct {
+	Mounts []struct {
+		Type        string `json:"Type"`
+		Source      string `json:"Source"`
+		Destination string `json:"Destination"`
+		RW          bool   `json:"RW"`
+	} `json:"Mounts"`
+	Config struct {
+		Cmd        []string `json:"Cmd"`
+		Entrypoint []string `json:"Entrypoint"`
+	} `json:"Config"`
+	HostConfig struct {
+		RestartPolicy struct {
+			Name string `json:"Name"`
+		} `json:"RestartPolicy"`
+		PortBindings map[string][]struct {
+			HostPort string `json:"HostPort"`
+		} `json:"PortBindings"`
+	} `json:"HostConfig"`
+	State struct {
+		StartedAt string `json:"StartedAt"`
+	} `json:"State"`
+	NetworkSettings struct {
+		Networks map[string]struct {
+			IPAddress string `json:"IPAddress"`
+		} `json:"Networks"`
+	} `json:"NetworkSettings"`
 }
 
 // statsResponse covers only the fields needed for the standard Docker CPU%
@@ -128,6 +186,16 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 			containers[i].CPUPercent = cpuPercent(stats)
 			containers[i].MemUsed = stats.MemoryStats.Usage
 			containers[i].MemLimit = stats.MemoryStats.Limit
+
+			var insp inspectResponse
+			if err := c.get(ctx, fmt.Sprintf("/containers/%s/json", id), &insp); err != nil {
+				// Same best-effort treatment -- the overview card already
+				// has what it needs from stats above, so a failed inspect
+				// just means the detail drawer will be sparse for this one
+				// container, not that the refresh fails.
+				return
+			}
+			applyInspect(&containers[i], insp)
 		}(i, s.ID)
 	}
 
@@ -136,6 +204,43 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 		slog.Warn("failed to fetch stats for some containers", "count", n, "total", len(running))
 	}
 	return containers, nil
+}
+
+// applyInspect fills in the detail-drawer fields from a container's
+// inspect response.
+func applyInspect(c *Container, insp inspectResponse) {
+	c.StartedAt = insp.State.StartedAt
+	c.RestartPolicy = insp.HostConfig.RestartPolicy.Name
+
+	cmd := insp.Config.Entrypoint
+	cmd = append(cmd, insp.Config.Cmd...)
+	c.Command = strings.Join(cmd, " ")
+
+	for _, m := range insp.Mounts {
+		c.Mounts = append(c.Mounts, Mount{
+			Type: m.Type, Source: m.Source, Destination: m.Destination, ReadOnly: !m.RW,
+		})
+	}
+
+	for name, net := range insp.NetworkSettings.Networks {
+		c.Networks = append(c.Networks, NetworkIP{Name: name, IP: net.IPAddress})
+	}
+	// Map iteration order is random -- sort so the UI doesn't jitter
+	// between refreshes for a container on more than one network.
+	sort.Slice(c.Networks, func(i, j int) bool { return c.Networks[i].Name < c.Networks[j].Name })
+
+	// Only published ports (there's a host-visible mapping) are useful on
+	// an overview page -- an internal-only exposed port has nothing to
+	// show. Sorted for the same reason as Networks above.
+	for containerPort, bindings := range insp.HostConfig.PortBindings {
+		for _, b := range bindings {
+			if b.HostPort == "" {
+				continue
+			}
+			c.Ports = append(c.Ports, fmt.Sprintf("%s → %s", containerPort, b.HostPort))
+		}
+	}
+	sort.Strings(c.Ports)
 }
 
 // cpuPercent implements Docker's own documented formula: CPU delta over
