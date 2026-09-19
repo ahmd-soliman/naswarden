@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Dataset } from '../composables/usePoolSocket'
+import PathText from './PathText.vue'
 
 const props = defineProps<{ dataset: Dataset; active?: boolean }>()
 defineEmits<{ select: [] }>()
@@ -39,7 +40,7 @@ function formatBytes(bytes: number): string {
     @keydown.space.prevent="$emit('select')"
   >
     <div class="dataset-card__header">
-      <span class="dataset-card__name">{{ dataset.name }}</span>
+      <span class="dataset-card__name" :title="dataset.name"><PathText :text="dataset.name" /></span>
       <span class="badge" :class="`badge--${statusColor}`">{{ usedPercent }}%</span>
     </div>
 
@@ -77,13 +78,12 @@ function formatBytes(bytes: number): string {
   font-size: 0.9rem;
   font-weight: 600;
   font-family: ui-monospace, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .badge {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;

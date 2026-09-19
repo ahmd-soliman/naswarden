@@ -101,13 +101,12 @@ function formatBytes(bytes: number): string {
   font-size: 0.95rem;
   font-weight: 600;
   font-family: ui-monospace, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .badge {
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 600;
   padding: 0.15rem 0.55rem;
   border-radius: 999px;
@@ -139,7 +138,7 @@ function formatBytes(bytes: number): string {
 }
 
 .stack-card__members {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
