@@ -152,7 +152,7 @@ func TestListVMsMock(t *testing.T) {
 						"dtype": "NIC",
 						"type": "VIRTIO",
 						"nic_attach": "br0",
-						"mac": "02:00:00:00:00:03"
+						"mac": "02:00:00:00:00:02"
 					}
 				},
 				{
@@ -281,8 +281,8 @@ func TestListVMsMock(t *testing.T) {
 	if win.OS != "Windows 10 (22H2)" {
 		t.Errorf("expected OS 'Windows 10 (22H2)', got %q", win.OS)
 	}
-	if win.Bridge != "br0" || win.MAC != "02:00:00:00:00:03" {
-		t.Errorf("expected bridge br0 / mac 02:00:00:00:00:03, got %s / %s", win.Bridge, win.MAC)
+	if win.Bridge != "br0" || win.MAC != "02:00:00:00:00:02" {
+		t.Errorf("expected bridge br0 / mac 02:00:00:00:00:02, got %s / %s", win.Bridge, win.MAC)
 	}
 	if win.DisplayPort != 5901 || win.WebPort != 5902 {
 		t.Errorf("expected display ports 5901 / 5902, got %d / %d", win.DisplayPort, win.WebPort)
