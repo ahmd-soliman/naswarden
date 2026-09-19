@@ -137,6 +137,7 @@ export interface VM {
 interface StateMessage {
   type: 'state'
   updated_at?: number // unix seconds the backend took this snapshot
+  stale_sources?: string[] // sources whose data is the previous snapshot (refresh failed)
   server: ServerInfo | null
   pools: Pool[]
   datasets: Dataset[]
@@ -157,6 +158,7 @@ export function usePoolSocket() {
   const vms = ref<VM[]>([])
   const connected = ref(false)
   const updatedAt = ref<number | null>(null)
+  const staleSources = ref<string[]>([])
 
   let socket: WebSocket | null = null
   let retryDelayMs = 1000
@@ -179,6 +181,7 @@ export function usePoolSocket() {
         containers.value = msg.containers ?? []
         vms.value = msg.vms ?? []
         updatedAt.value = msg.updated_at ?? null
+        staleSources.value = msg.stale_sources ?? []
       }
     }
 
@@ -196,5 +199,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { server, pools, datasets, containers, vms, connected, updatedAt }
+  return { server, pools, datasets, containers, vms, connected, updatedAt, staleSources }
 }
