@@ -196,6 +196,35 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	vm.Sort(vms)
 	metrics.UpdateInstances(vms)
 
+	// TrueNAS alerts and replication tasks: like the other optional
+	// sources, a failed call keeps the last good list (flagged stale)
+	// instead of blanking the UI and the metrics.
+	alerts := cache.alerts
+	if fresh, err := truenas.ListAlerts(ctx, client); err != nil {
+		slog.Error("failed to refresh truenas alerts", "err", err)
+		stale = append(stale, "alerts")
+	} else {
+		alerts = fresh
+		cache.alerts = fresh
+	}
+	if alerts == nil {
+		alerts = []truenas.Alert{}
+	}
+	metrics.UpdateAlerts(alerts)
+
+	replications := cache.replications
+	if fresh, err := truenas.ListReplications(ctx, client); err != nil {
+		slog.Error("failed to refresh truenas replications", "err", err)
+		stale = append(stale, "replication")
+	} else {
+		replications = fresh
+		cache.replications = fresh
+	}
+	if replications == nil {
+		replications = []truenas.ReplicationTask{}
+	}
+	metrics.UpdateReplications(replications)
+
 	payload, err := json.Marshal(map[string]any{
 		"type": "state",
 		// When this snapshot was taken. The UI shows its age and flags it
@@ -204,13 +233,15 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		// indicator with no way to tell.
 		"updated_at": time.Now().Unix(),
 		// Sources whose data is the previous snapshot because this refresh
-		// failed ("docker", "incus", "truenas-vms").
+		// failed ("docker", "incus", "truenas-vms", ...).
 		"stale_sources": append([]string{}, stale...),
 		"server":        server,
 		"pools":         pools,
 		"datasets":      datasets,
 		"containers":    containers,
 		"vms":           vms,
+		"alerts":        alerts,
+		"replications":  replications,
 	})
 	if err != nil {
 		slog.Error("failed to marshal state payload", "err", err)
@@ -223,7 +254,9 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 // lastGood holds the previous successful result of each optional source.
 // Only the refresh goroutine touches it.
 type lastGood struct {
-	containers []docker.Container
-	truenasVMs []vm.Instance
-	incus      []vm.Instance
+	containers   []docker.Container
+	truenasVMs   []vm.Instance
+	incus        []vm.Instance
+	alerts       []truenas.Alert
+	replications []truenas.ReplicationTask
 }

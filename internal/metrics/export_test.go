@@ -113,3 +113,50 @@ func TestVanishedSeriesAreDeletedNotReset(t *testing.T) {
 		t.Fatalf("want 0 series, got %d", n)
 	}
 }
+
+func TestUpdateAlerts(t *testing.T) {
+	alerts := []truenas.Alert{
+		{ID: "1", Level: "WARNING", Dismissed: false},
+		{ID: "2", Level: "WARNING", Dismissed: false},
+		{ID: "3", Level: "CRITICAL", Dismissed: false},
+		{ID: "4", Level: "INFO", Dismissed: true},
+	}
+	UpdateAlerts(alerts)
+
+	if val := gaugeValue(alertCount.WithLabelValues("WARNING")); val != 2.0 {
+		t.Errorf("expected 2 warnings, got %f", val)
+	}
+	if val := gaugeValue(alertCount.WithLabelValues("CRITICAL")); val != 1.0 {
+		t.Errorf("expected 1 critical, got %f", val)
+	}
+}
+
+func TestUpdateReplications(t *testing.T) {
+	tasks := []truenas.ReplicationTask{
+		{ID: 24, Name: "tank_BKP", TargetPool: "backup", State: "FINISHED", JobState: "SUCCESS", Enabled: true},
+	}
+	UpdateReplications(tasks)
+
+	if val := gaugeValue(replicationTaskStatus.WithLabelValues("24", "tank_BKP", "backup", "FINISHED", "SUCCESS")); val != 1.0 {
+		t.Errorf("expected 1.0, got %f", val)
+	}
+}
+
+func TestAlertAndReplicationSeriesDropWhenResolved(t *testing.T) {
+	UpdateAlerts([]truenas.Alert{{Level: "WARNING"}, {Level: "CRITICAL"}})
+	if n := seriesCount(t, alertCount); n != 2 {
+		t.Fatalf("want 2 alert series, got %d", n)
+	}
+	UpdateAlerts([]truenas.Alert{{Level: "WARNING"}})
+	if n := seriesCount(t, alertCount); n != 1 {
+		t.Fatalf("resolved alert level should drop its series, got %d", n)
+	}
+	UpdateAlerts(nil)
+
+	UpdateReplications([]truenas.ReplicationTask{{ID: 1, Name: "a", TargetPool: "p", State: "RUNNING", JobState: "RUNNING", Enabled: true}})
+	UpdateReplications([]truenas.ReplicationTask{{ID: 1, Name: "a", TargetPool: "p", State: "FINISHED", JobState: "SUCCESS", Enabled: true}})
+	if n := seriesCount(t, replicationTaskStatus); n != 1 {
+		t.Fatalf("a task changing state must replace its series, got %d", n)
+	}
+	UpdateReplications(nil)
+}
