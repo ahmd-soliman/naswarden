@@ -85,9 +85,38 @@ export interface Container {
 
 export interface Interface {
   name: string
+  type: string // "PHYSICAL" | "BRIDGE" | ...
   link_state: string
   speed: string
+  speed_mbps: number // 0 if unknown
   addresses: string[]
+  rx_kbps?: number // live rate, kilobits/s (last-minute average)
+  tx_kbps?: number
+}
+
+export interface Disk {
+  name: string
+  model: string
+  serial: string
+  size: number
+  type: string // "HDD" | "SSD"
+  rotation_rate?: number
+  bus?: string
+  pool: string // '' if not in a pool
+  vdev?: string
+  status: string // pool member state (ONLINE, DEGRADED, ...), '' for non-members
+  temp_c?: number
+  standby: boolean
+  temp_7d_min?: number
+  temp_7d_avg?: number
+  temp_7d_max?: number
+  read_bytes?: number // ZFS counters since the pool was imported
+  write_bytes?: number
+  read_bytes_per_sec?: number // rate between the last two refreshes
+  write_bytes_per_sec?: number
+  read_errors: number
+  write_errors: number
+  checksum_errors: number
 }
 
 export interface ServerInfo {
@@ -106,6 +135,8 @@ export interface ServerInfo {
   cores: number
   physical_cores: number
   cpu_temp_c: number
+  net_rx_kbps?: number // total over physical interfaces, kilobits/s
+  net_tx_kbps?: number
 }
 
 export interface VM {
@@ -177,6 +208,7 @@ interface StateMessage {
   datasets: Dataset[]
   containers: Container[] | null
   vms: VM[] | null
+  disks?: Disk[] | null
   alerts?: Alert[] | null
   replications?: ReplicationTask[] | null
 }
@@ -192,6 +224,7 @@ export function usePoolSocket() {
   const datasets = ref<Dataset[]>([])
   const containers = ref<Container[]>([])
   const vms = ref<VM[]>([])
+  const disks = ref<Disk[]>([])
   const alerts = ref<Alert[]>([])
   const replications = ref<ReplicationTask[]>([])
   const connected = ref(false)
@@ -218,6 +251,7 @@ export function usePoolSocket() {
         datasets.value = msg.datasets
         containers.value = msg.containers ?? []
         vms.value = msg.vms ?? []
+        disks.value = msg.disks ?? []
         alerts.value = msg.alerts ?? []
         replications.value = msg.replications ?? []
         updatedAt.value = msg.updated_at ?? null
@@ -239,5 +273,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { server, pools, datasets, containers, vms, alerts, replications, connected, updatedAt, staleSources }
+  return { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources }
 }
