@@ -73,6 +73,10 @@ export interface Container {
   mounts: Mount[]
   networks: NetworkIP[]
   ports: string[]
+  stack: string // compose project, '' for a loose container
+  compose_file: string
+  icon: string // optional `naswarden.icon` label override
+  exit_code: number // last exit code, meaningful once stopped
 }
 
 export interface Interface {

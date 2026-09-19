@@ -4,13 +4,18 @@ import ServerCard from './components/ServerCard.vue'
 import PoolCard from './components/PoolCard.vue'
 import DatasetCard from './components/DatasetCard.vue'
 import ContainerCard from './components/ContainerCard.vue'
+import StackCard from './components/StackCard.vue'
+import AppIcon from './components/AppIcon.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
 import ServerDetails from './components/ServerDetails.vue'
 import PoolDetails from './components/PoolDetails.vue'
 import DatasetDetails from './components/DatasetDetails.vue'
 import ContainerDetails from './components/ContainerDetails.vue'
+import StackDetails from './components/StackDetails.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
 import type { Container, Dataset, Pool, ServerInfo } from './composables/usePoolSocket'
+import { buildStacks, iconCandidates, isStopped } from './composables/useStacks'
+import type { Stack } from './composables/useStacks'
 
 const { server, pools, datasets, containers, connected, updatedAt } = usePoolSocket()
 
@@ -44,22 +49,29 @@ const sortedDatasets = computed(() =>
   [...datasets.value].sort((a, b) => b.used / b.quota - a.used / a.quota),
 )
 
+// Stacks are built from EVERY container, including stopped members (that is
+// how a stack can say "2/3 running"); the flat Containers tab lists only the
+// ones that are up, since stopped ones are noise there.
+const stacks = computed(() => buildStacks(containers.value))
+const hasStacks = computed(() => stacks.value.length > 0)
+const liveContainers = computed(() => containers.value.filter((c) => !isStopped(c)))
+
 // Running containers first, then alphabetical within each group.
 const sortedContainers = computed(() =>
-  [...containers.value].sort((a, b) => {
+  [...liveContainers.value].sort((a, b) => {
     if (a.state === 'running' && b.state !== 'running') return -1
     if (a.state !== 'running' && b.state === 'running') return 1
     return a.name.localeCompare(b.name)
   }),
 )
 
-const hasContainers = computed(() => containers.value.length > 0)
+const hasContainers = computed(() => liveContainers.value.length > 0)
 
 // 'all' shows every section at once (the default, glanceable overview);
 // picking a rail item filters down to just that section. Filtering never
 // hides data the "All" view wouldn't already show -- it's a convenience,
 // not a different data set.
-const activeSection = ref<'all' | 'server' | 'pools' | 'datasets' | 'containers'>('all')
+const activeSection = ref<'all' | 'server' | 'pools' | 'datasets' | 'stacks' | 'containers'>('all')
 
 function selectSection(name: typeof activeSection.value) {
   activeSection.value = name
@@ -70,7 +82,7 @@ function selectSection(name: typeof activeSection.value) {
 // view and highlight the matching rail item -- without hiding any other
 // section. Paused while a specific section is filtered in, since every
 // other section is already hidden then.
-const scrollSection = ref<'server' | 'pools' | 'datasets' | 'containers'>('server')
+const scrollSection = ref<'server' | 'pools' | 'datasets' | 'stacks' | 'containers'>('server')
 let observer: IntersectionObserver | null = null
 
 function initObserver() {
@@ -92,10 +104,10 @@ function initObserver() {
 onMounted(() => nextTick(initObserver))
 // Containers section only exists in the DOM once containers show up --
 // re-observe when that changes so the rail highlight tracks it too.
-watch(hasContainers, () => nextTick(initObserver))
+watch([hasContainers, hasStacks], () => nextTick(initObserver))
 onBeforeUnmount(() => observer?.disconnect())
 
-function railClass(section: 'server' | 'pools' | 'datasets' | 'containers') {
+function railClass(section: 'server' | 'pools' | 'datasets' | 'stacks' | 'containers') {
   return {
     active: activeSection.value === section,
     'scroll-active': activeSection.value === 'all' && scrollSection.value === section,
@@ -108,7 +120,10 @@ type Selected =
   | { kind: 'server'; data: ServerInfo }
   | { kind: 'pool'; data: Pool }
   | { kind: 'dataset'; data: Dataset }
-  | { kind: 'container'; data: Container }
+  | { kind: 'stack'; data: Stack }
+  // fromStack: opened by drilling down from that stack's drawer, so the
+  // drawer offers a way back to it
+  | { kind: 'container'; data: Container; fromStack?: string }
 
 const selected = ref<Selected | null>(null)
 
@@ -116,6 +131,23 @@ const drawerTitle = computed(() => {
   if (!selected.value) return ''
   return selected.value.kind === 'server' ? selected.value.data.hostname : selected.value.data.name
 })
+const drawerBack = computed(() =>
+  selected.value?.kind === 'container' ? selected.value.fromStack : undefined,
+)
+
+function openStack(name: string) {
+  const stack = stacks.value.find((s) => s.name === name)
+  if (stack) selected.value = { kind: 'stack', data: stack }
+}
+function openContainer(name: string, fromStack?: string) {
+  const container = containers.value.find((c) => c.name === name)
+  if (container) selected.value = { kind: 'container', data: container, fromStack }
+}
+// The stack card stays highlighted while one of its containers is open in the drawer.
+function stackActive(name: string) {
+  const s = selected.value
+  return (s?.kind === 'stack' && s.data.name === name) || (s?.kind === 'container' && s.fromStack === name)
+}
 </script>
 
 <template>
@@ -169,6 +201,16 @@ const drawerTitle = computed(() => {
           Datasets
         </button>
         <button
+          v-if="hasStacks"
+          class="rail__item rail__item--stack"
+          :class="railClass('stacks')"
+          :aria-current="activeSection === 'stacks' ? 'true' : undefined"
+          @click="selectSection('stacks')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          Stacks
+        </button>
+        <button
           v-if="hasContainers"
           class="rail__item rail__item--container"
           :class="railClass('containers')"
@@ -218,11 +260,21 @@ const drawerTitle = computed(() => {
           </div>
         </section>
 
-        <section
-          v-if="hasContainers"
-          data-section="containers"
-          v-show="activeSection === 'all' || activeSection === 'containers'"
-        >
+        <section v-if="hasStacks" data-section="stacks" v-show="activeSection === 'all' || activeSection === 'stacks'">
+          <h2>Stacks</h2>
+          <div class="grid">
+            <StackCard
+              v-for="stack in stacks"
+              :key="stack.name"
+              :stack="stack"
+              :active="stackActive(stack.name)"
+              @select="selected = { kind: 'stack', data: stack }"
+            />
+          </div>
+        </section>
+
+        <!-- Stacks is the default landing view, so the flat list lives on its own tab -->
+        <section v-if="hasContainers" data-section="containers" v-show="activeSection === 'containers'">
           <h2>Containers</h2>
           <div class="grid grid--datasets">
             <ContainerCard
@@ -237,11 +289,29 @@ const drawerTitle = computed(() => {
       </main>
     </div>
 
-    <DetailDrawer :open="selected !== null" :title="drawerTitle" @close="selected = null">
+    <DetailDrawer
+      :open="selected !== null"
+      :title="drawerTitle"
+      :back="drawerBack"
+      @close="selected = null"
+      @back="drawerBack && openStack(drawerBack)"
+    >
+      <template v-if="selected?.kind === 'stack'" #title-icon>
+        <AppIcon :candidates="iconCandidates(selected.data)" :size="22" />
+      </template>
       <ServerDetails v-if="selected?.kind === 'server'" :server="selected.data" />
       <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" />
       <DatasetDetails v-else-if="selected?.kind === 'dataset'" :dataset="selected.data" />
-      <ContainerDetails v-else-if="selected?.kind === 'container'" :container="selected.data" />
+      <StackDetails
+        v-else-if="selected?.kind === 'stack'"
+        :stack="selected.data"
+        @open-container="(name: string) => openContainer(name, selected?.kind === 'stack' ? selected.data.name : undefined)"
+      />
+      <ContainerDetails
+        v-else-if="selected?.kind === 'container'"
+        :container="selected.data"
+        @open-stack="openStack"
+      />
     </DetailDrawer>
   </div>
 </template>
@@ -367,6 +437,10 @@ const drawerTitle = computed(() => {
 .rail__item--dataset.active svg,
 .rail__item--dataset.scroll-active svg {
   color: var(--dataset);
+}
+.rail__item--stack.active svg,
+.rail__item--stack.scroll-active svg {
+  color: var(--stack);
 }
 .rail__item--container.active svg,
 .rail__item--container.scroll-active svg {
