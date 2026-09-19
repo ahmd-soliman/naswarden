@@ -11,6 +11,16 @@ NasWarden monitors dataset quota utilization in real time, and expands into a un
 - **Virtual Machines & Containers (TrueNAS Native KVM + Incus KVM/LXC)**
 - **Prometheus Metrics & PromQL Linear Exhaustion Forecasting**
 
+## Screenshots
+
+Demo data, not a real system.
+
+![Overview: server, pools, disks and dataset quotas](docs/screenshots/screenshot-overview.png)
+
+![Disks with the detail panel open](docs/screenshots/screenshot-disks.png)
+
+![Docker stacks](docs/screenshots/screenshot-stacks.png)
+
 ---
 
 ## Key Features
