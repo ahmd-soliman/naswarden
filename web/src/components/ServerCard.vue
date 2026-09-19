@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ServerInfo } from '../composables/usePoolSocket'
+import { formatBitrate } from '../composables/format'
 
 const props = defineProps<{ server: ServerInfo; active?: boolean }>()
 defineEmits<{ select: [] }>()
@@ -80,6 +81,18 @@ function formatUptime(seconds: number): string {
           Temp
         </span>
         <span class="server-card__value" :class="`temp--${tempColor}`">{{ server.cpu_temp_c.toFixed(0) }}&deg;C</span>
+      </div>
+      <div v-if="server.net_rx_kbps !== undefined && server.net_tx_kbps !== undefined" class="server-card__stat">
+        <span class="server-card__label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7" transform="rotate(0 12 12)"/></svg>
+          Network
+        </span>
+        <span
+          class="server-card__value"
+          :aria-label="`Network: ${formatBitrate(server.net_rx_kbps)} received, ${formatBitrate(server.net_tx_kbps)} sent`"
+        >
+          <span aria-hidden="true">&darr; {{ formatBitrate(server.net_rx_kbps) }} &nbsp;&uarr; {{ formatBitrate(server.net_tx_kbps) }}</span>
+        </span>
       </div>
       <div class="server-card__stat">
         <span class="server-card__label">System pressure (1/5/15m)</span>

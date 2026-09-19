@@ -1,4 +1,4 @@
-import type { Container, Dataset, Pool, VM } from './usePoolSocket'
+import type { Container, Dataset, Disk, Pool, VM } from './usePoolSocket'
 import type { Stack } from './useStacks'
 
 // Case-insensitive substring match; an empty query matches everything.
@@ -27,3 +27,7 @@ export const matchesVM = (v: VM, q: string) =>
   has(v.is_vm ? 'kvm' : 'lxc', q) ||
   (v.passthrough && v.passthrough.some((p) => has(p, q))) ||
   v.ipv4.some((ip) => has(ip, q))
+
+// A disk matches on its device name, model, serial, pool or type (HDD/SSD).
+export const matchesDisk = (d: Disk, q: string) =>
+  !q || has(d.name, q) || has(d.model, q) || has(d.serial, q) || has(d.pool, q) || has(d.type, q)
