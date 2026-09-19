@@ -82,14 +82,22 @@ func (e *ddpError) String() string {
 // certificate verification, needed for TrueNAS's default self-signed UI
 // certificate on a LAN. The returned client redials on its own after a drop.
 func Connect(ctx context.Context, host, apiKey string, useTLS, insecureTLS bool) (*Client, error) {
-	c := &Client{
-		host: host, apiKey: apiKey, useTLS: useTLS, insecureTLS: insecureTLS,
-		pending: make(map[string]pendingCall),
-	}
+	c := NewClient(host, apiKey, useTLS, insecureTLS)
 	if _, err := c.current(ctx); err != nil {
 		return nil, err
 	}
 	return c, nil
+}
+
+// NewClient returns a client that has not dialed yet: the first Call connects,
+// authenticates and, like after any drop, retries on every later Call until it
+// succeeds. Use it when the process should start (and report why it cannot
+// reach TrueNAS) even if TrueNAS is not ready yet, e.g. right after a boot.
+func NewClient(host, apiKey string, useTLS, insecureTLS bool) *Client {
+	return &Client{
+		host: host, apiKey: apiKey, useTLS: useTLS, insecureTLS: insecureTLS,
+		pending: make(map[string]pendingCall),
+	}
 }
 
 // current returns the live connection, dialing a fresh one if there is none.
@@ -137,9 +145,16 @@ func (c *Client) dial(ctx context.Context) (*websocket.Conn, error) {
 		return nil, fmt.Errorf("waiting for DDP \"connected\" ack: %w", ctx.Err())
 	}
 
-	if _, err := c.callOn(ctx, conn, "auth.login_with_api_key", []any{c.apiKey}); err != nil {
+	res, err := c.callOn(ctx, conn, "auth.login_with_api_key", []any{c.apiKey})
+	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("authenticate: %w", err)
+	}
+	// A rejected key is not an error reply: TrueNAS answers `false`.
+	var accepted bool
+	if json.Unmarshal(res, &accepted) == nil && !accepted {
+		conn.Close()
+		return nil, fmt.Errorf("authenticate: TrueNAS rejected the API key (check TRUENAS_API_KEY)")
 	}
 	return conn, nil
 }
@@ -149,7 +164,7 @@ func (c *Client) dial(ctx context.Context) (*websocket.Conn, error) {
 func (c *Client) Call(ctx context.Context, method string, params []any) (json.RawMessage, error) {
 	conn, err := c.current(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", method, err)
+		return nil, err // dial/auth errors already say what failed
 	}
 	return c.callOn(ctx, conn, method, params)
 }

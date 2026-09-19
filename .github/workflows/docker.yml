@@ -3,7 +3,9 @@ name: Build and publish image
 on:
   push:
     branches: [main]
-  # Lint and tests gate every PR; the image is only built and pushed from main.
+    # A version tag (v1.2.3) publishes the immutable release tags 1.2.3 and 1.2.
+    tags: ['v*']
+  # Lint and tests gate every PR; images are only built and pushed from main and version tags.
   pull_request:
 
 permissions:
@@ -72,10 +74,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # main -> :latest and :<commit sha>; tag v1.2.3 -> :1.2.3 and :1.2
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=long,prefix=,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
