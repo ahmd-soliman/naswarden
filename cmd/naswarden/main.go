@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -19,6 +18,8 @@ import (
 	"github.com/ahmd-soliman/naswarden/internal/web"
 	"github.com/ahmd-soliman/naswarden/internal/ws"
 )
+
+const refreshInterval = 60 * time.Second
 
 func main() {
 	host := os.Getenv("TRUENAS_HOST")
@@ -76,15 +77,17 @@ func main() {
 	}
 
 	hub := ws.NewHub()
+	health := newHealth(refreshInterval * 3)
+	cache := &lastGood{}
 
 	// Refresh loop: poll TrueNAS, Docker, and Incus, push to every connected
 	// client. Decoupled from any client's own connection lifecycle or Prometheus
 	// scrape interval -- one internal cadence, fan out to everyone.
 	go func() {
-		ticker := time.NewTicker(60 * time.Second)
+		ticker := time.NewTicker(refreshInterval)
 		defer ticker.Stop()
 		for {
-			refresh(client, dockerClient, incusClient, hub)
+			refresh(client, dockerClient, incusClient, hub, cache, health)
 			<-ticker.C
 		}
 	}()
@@ -97,9 +100,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", hub.ServeHTTP)
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
+	mux.Handle("/healthz", health)
 	mux.Handle("/", uiHandler)
 	mux.Handle("/metrics", promhttp.Handler())
 
@@ -115,7 +116,7 @@ func main() {
 // renders a consistent snapshot, not pools, datasets, and instances from
 // different refresh moments), and separately fed into the Prometheus
 // gauges for /metrics.
-func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *incus.Client, hub *ws.Hub) {
+func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *incus.Client, hub *ws.Hub, cache *lastGood, health *healthState) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -143,48 +144,48 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	// (proxy briefly unreachable) shouldn't take down pool/dataset
 	// reporting, which is why this doesn't early-return like the TrueNAS
 	// calls above.
-	var containers []docker.Container
+	var stale []string
+	containers := cache.containers
 	if dockerClient != nil {
-		containers, err = dockerClient.ListContainers(ctx)
+		fresh, err := dockerClient.ListContainers(ctx)
 		if err != nil {
 			slog.Error("failed to refresh containers", "err", err)
+			stale = append(stale, "docker")
+		} else {
+			containers = fresh
+			cache.containers = fresh
 		}
 	}
 	metrics.UpdateContainers(containers)
 
-	// Virtual machines and containers from TrueNAS Native and Incus
-	var truenasVMs []vm.Instance
-	if client != nil {
-		var err error
-		truenasVMs, err = truenas.ListVMs(ctx, client)
-		if err != nil {
-			slog.Error("failed to refresh truenas vms", "err", err)
-		}
+	// Virtual machines and containers from TrueNAS Native and Incus. Like
+	// Docker, a failed source keeps its last good list (flagged stale)
+	// rather than emptying -- an outage of one backend must not read as
+	// "every VM was deleted" in the UI or in the Prometheus gauges.
+	truenasVMs := cache.truenasVMs
+	if fresh, err := truenas.ListVMs(ctx, client); err != nil {
+		slog.Error("failed to refresh truenas vms", "err", err)
+		stale = append(stale, "truenas-vms")
+	} else {
+		truenasVMs = fresh
+		cache.truenasVMs = fresh
 	}
 
-	var incusInstances []vm.Instance
+	incusInstances := cache.incus
 	if incusClient != nil {
-		var err error
-		incusInstances, err = incusClient.ListInstances(ctx)
-		if err != nil {
+		if fresh, err := incusClient.ListInstances(ctx); err != nil {
 			slog.Error("failed to refresh incus instances", "err", err)
+			stale = append(stale, "incus")
+		} else {
+			incusInstances = fresh
+			cache.incus = fresh
 		}
 	}
 
 	vms := make([]vm.Instance, 0, len(truenasVMs)+len(incusInstances))
 	vms = append(vms, truenasVMs...)
 	vms = append(vms, incusInstances...)
-
-	// Sort: VMs first, then containers; alphabetically within type
-	sort.Slice(vms, func(i, j int) bool {
-		if vms[i].IsVM != vms[j].IsVM {
-			return vms[i].IsVM // true (KVM VM) before false (LXC container)
-		}
-		if vms[i].Manager != vms[j].Manager {
-			return vms[i].Manager < vms[j].Manager
-		}
-		return vms[i].Name < vms[j].Name
-	})
+	vm.Sort(vms)
 	metrics.UpdateInstances(vms)
 
 	payload, err := json.Marshal(map[string]any{
@@ -194,15 +195,27 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		// connected browser would keep showing old numbers under a "live"
 		// indicator with no way to tell.
 		"updated_at": time.Now().Unix(),
-		"server":     server,
-		"pools":      pools,
-		"datasets":   datasets,
-		"containers": containers,
-		"vms":        vms,
+		// Sources whose data is the previous snapshot because this refresh
+		// failed ("docker", "incus", "truenas-vms").
+		"stale_sources": append([]string{}, stale...),
+		"server":        server,
+		"pools":         pools,
+		"datasets":      datasets,
+		"containers":    containers,
+		"vms":           vms,
 	})
 	if err != nil {
 		slog.Error("failed to marshal state payload", "err", err)
 		return
 	}
 	hub.Broadcast(payload)
+	health.markOK()
+}
+
+// lastGood holds the previous successful result of each optional source.
+// Only the refresh goroutine touches it.
+type lastGood struct {
+	containers []docker.Container
+	truenasVMs []vm.Instance
+	incus      []vm.Instance
 }
