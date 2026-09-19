@@ -179,6 +179,8 @@ npm install
 npm run build
 
 # Tests (CI runs all of these and checks the committed internal/web/dist is current)
+golangci-lint run ./...   # config in .golangci.yml
 go test -race ./...
+npm run lint
 npm test
 ```
