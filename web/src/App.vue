@@ -32,7 +32,7 @@ import { useViewMode } from './composables/useViewMode'
 import { useWide } from './composables/useWide'
 import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
-const { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources } = usePoolSocket()
+const { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources, serverError } = usePoolSocket()
 
 // Data freshness. The backend refreshes every 60s; if it stops getting data
 // (TrueNAS unreachable, refresh failing) it broadcasts nothing, so a browser
@@ -538,6 +538,13 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
         <p v-if="q && resultCount === 0" class="empty">No matches for “{{ query.trim() }}”.</p>
         <p class="sr-only" role="status" aria-live="polite">{{ announcement }}</p>
 
+        <!-- Why there is no (fresh) data: wrong host or API key, TrueNAS still booting, ... -->
+        <div v-if="serverError" class="banner" role="alert">
+          <strong>Can't get data from TrueNAS.</strong>
+          <span>{{ serverError }}</span>
+          <span class="banner__hint">Check TRUENAS_HOST, TRUENAS_API_KEY and the TLS settings. NasWarden keeps retrying.</span>
+        </div>
+
         <section v-if="server" v-show="activeSection === 'all' || activeSection === 'server'" data-section="server">
           <h2>Server</h2>
           <ServerCard
@@ -968,6 +975,26 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 
 section {
   margin-bottom: 1.5rem;
+}
+
+.banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--crit-t) 45%, transparent);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--crit-t) 10%, var(--card-bg));
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.banner strong {
+  color: var(--crit-t);
+}
+.banner__hint {
+  color: var(--text-dim);
 }
 
 .section__head {
