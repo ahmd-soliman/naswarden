@@ -118,7 +118,7 @@ func (c *Client) dial(ctx context.Context) (*websocket.Conn, error) {
 	if c.useTLS && c.insecureTLS {
 		dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // opt-in for self-signed LAN certs
 	}
-	conn, _, err := dialer.DialContext(ctx, url, nil)
+	conn, _, err := dialer.DialContext(ctx, url, nil) //nolint:bodyclose // gorilla hands the upgraded conn over; no body to close
 	if err != nil {
 		return nil, fmt.Errorf("dial %s: %w", url, err)
 	}
