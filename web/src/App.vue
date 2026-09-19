@@ -17,8 +17,9 @@ import ContainerDetails from './components/ContainerDetails.vue'
 import StackDetails from './components/StackDetails.vue'
 import { usePoolSocket } from './composables/usePoolSocket'
 import type { Container, Dataset, Pool, ServerInfo, VM } from './composables/usePoolSocket'
-import { buildStacks, iconCandidates, isStopped } from './composables/useStacks'
+import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
+import { vmIconCandidates } from './composables/useVMs'
 import { matchesContainer, matchesDataset, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
 const { server, pools, datasets, containers, vms, connected, updatedAt } = usePoolSocket()
@@ -160,6 +161,37 @@ onMounted(() => nextTick(initObserver))
 // re-observe when that changes so the rail highlight tracks them too.
 watch([hasContainers, hasStacks, hasVMs], () => nextTick(initObserver))
 onBeforeUnmount(() => observer?.disconnect())
+
+const poolAlerts = computed(() => {
+  const crit = pools.value.filter((p) => !p.healthy).length
+  const warn = pools.value.filter((p) => p.healthy && p.warning).length
+  return { count: crit + warn, level: crit > 0 ? 'crit' : 'warn' }
+})
+
+const datasetAlerts = computed(() => {
+  const crit = datasets.value.filter((d) => d.quota > 0 && d.used / d.quota >= 0.9).length
+  const warn = datasets.value.filter((d) => d.quota > 0 && d.used / d.quota >= 0.7 && d.used / d.quota < 0.9).length
+  return { count: crit + warn, level: crit > 0 ? 'crit' : 'warn' }
+})
+
+const vmAlerts = computed(() => {
+  const crit = vms.value.filter((v) => {
+    const s = v.status.toLowerCase()
+    return s !== 'running' && s !== 'stopped'
+  }).length
+  return { count: crit, level: 'crit' }
+})
+
+const stackAlerts = computed(() => {
+  const red = stacks.value.filter((s) => s.health === 'red').length
+  const yellow = stacks.value.filter((s) => s.health === 'yellow').length
+  return { count: red + yellow, level: red > 0 ? 'crit' : 'warn' }
+})
+
+const containerAlerts = computed(() => {
+  const crit = containers.value.filter((c) => !isCleanStop(c) && c.state !== 'running').length
+  return { count: crit, level: 'crit' }
+})
 
 function railClass(section: 'server' | 'pools' | 'datasets' | 'vms' | 'stacks' | 'containers') {
   return {
@@ -308,6 +340,9 @@ function stackActive(name: string) {
           @click="selectSection('pools')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
           Pools
+          <span v-if="poolAlerts.count > 0" class="rail__badge" :class="`rail__badge--${poolAlerts.level}`" :title="`${poolAlerts.count} pool attention needed`">
+            {{ poolAlerts.count }}
+          </span>
         </button>
         <button
           class="rail__item rail__item--dataset"
@@ -317,6 +352,9 @@ function stackActive(name: string) {
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
           Datasets
+          <span v-if="datasetAlerts.count > 0" class="rail__badge" :class="`rail__badge--${datasetAlerts.level}`" :title="`${datasetAlerts.count} dataset quota warnings`">
+            {{ datasetAlerts.count }}
+          </span>
         </button>
         <button
           v-if="hasVMs"
@@ -327,6 +365,9 @@ function stackActive(name: string) {
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>
           VMs
+          <span v-if="vmAlerts.count > 0" class="rail__badge" :class="`rail__badge--${vmAlerts.level}`" :title="`${vmAlerts.count} VMs in error or non-standard state`">
+            {{ vmAlerts.count }}
+          </span>
         </button>
         <button
           v-if="hasStacks"
@@ -337,6 +378,9 @@ function stackActive(name: string) {
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
           Stacks
+          <span v-if="stackAlerts.count > 0" class="rail__badge" :class="`rail__badge--${stackAlerts.level}`" :title="`${stackAlerts.count} stacks with issues`">
+            {{ stackAlerts.count }}
+          </span>
         </button>
         <button
           v-if="hasContainers"
@@ -347,6 +391,9 @@ function stackActive(name: string) {
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
           Containers
+          <span v-if="containerAlerts.count > 0" class="rail__badge" :class="`rail__badge--${containerAlerts.level}`" :title="`${containerAlerts.count} crashed/failed containers`">
+            {{ containerAlerts.count }}
+          </span>
         </button>
       </nav>
 
@@ -442,6 +489,12 @@ function stackActive(name: string) {
     >
       <template v-if="selected?.kind === 'stack'" #title-icon>
         <AppIcon :candidates="iconCandidates(selected.data)" :size="22" />
+      </template>
+      <template v-else-if="selected?.kind === 'vm'" #title-icon>
+        <AppIcon :candidates="vmIconCandidates(selected.data)" :size="22" />
+      </template>
+      <template v-else-if="selected?.kind === 'container'" #title-icon>
+        <AppIcon :candidates="containerIconCandidates(selected.data)" :size="22" />
       </template>
       <ServerDetails v-if="selected?.kind === 'server'" :server="selected.data" />
       <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" />
@@ -566,6 +619,27 @@ function stackActive(name: string) {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+}
+
+.rail__badge {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.rail__badge--warn {
+  background: var(--warn);
+  color: #111;
+}
+
+.rail__badge--crit {
+  background: var(--crit);
+  color: #fff;
 }
 
 .rail__item.active,
