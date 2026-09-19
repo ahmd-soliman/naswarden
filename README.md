@@ -95,7 +95,7 @@ Incus is only reachable with a client certificate, and TrueNAS's web interface h
    ```sh
    incus config trust add-certificate client.crt --name naswarden
    ```
-   Instances created in the TrueNAS web interface all live in Incus's `default` project, so there is no project to restrict the certificate to.
+   Instances created in the TrueNAS web interface all live in Incus's `default` project, so nothing more is needed. If you have made your own Incus projects from the shell, you know which ones NasWarden should see: add `--restricted --projects <name,...>` to limit the certificate to them.
 3. **Check that Incus listens on the network:** `incus config get core.https_address` should print something like `:8444`. If it is empty, `incus config set core.https_address :8444`.
 4. **Configure NasWarden:** `INCUS_URL=https://<truenas-host>:8444`, and `INCUS_CLIENT_CERT` / `INCUS_CLIENT_KEY` set to the contents of `client.crt` and `client.key` (PEM text, base64, or a file path inside the container). `INCUS_INSECURE_TLS=true` accepts Incus's self-signed server certificate.
 
