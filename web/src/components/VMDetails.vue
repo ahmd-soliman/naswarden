@@ -4,8 +4,8 @@ import type { VM } from '../composables/usePoolSocket'
 
 const props = defineProps<{ vm: VM }>()
 
-function formatStartedAt(iso: string): string {
-  if (!iso) return 'unknown'
+function formatStartedAt(iso?: string): string {
+  if (!iso) return 'Not running'
   return new Date(iso).toLocaleString()
 }
 
@@ -20,6 +20,9 @@ function formatBytes(bytes: number): string {
   }
   return `${value.toFixed(1)} ${units[unitIndex]}`
 }
+
+const isRunning = computed(() => props.vm.status.toLowerCase() === 'running')
+const isTrueNAS = computed(() => props.vm.manager === 'truenas')
 
 const statusBadge = computed(() => {
   const s = props.vm.status.toLowerCase()
@@ -45,8 +48,17 @@ const filteredConfig = computed(() => {
   <div class="drawer__section">
     <h3>Overview</h3>
     <div class="drawer__kv">
+      <span>Manager</span>
+      <span class="vm-details-badge-wrap">
+        <span class="vm-manager-pill" :class="isTrueNAS ? 'vm-manager-pill--truenas' : 'vm-manager-pill--incus'">
+          {{ isTrueNAS ? 'TrueNAS' : 'Incus' }}
+        </span>
+        <span class="drawer__dim-note">{{ isTrueNAS ? 'SCALE Virtualization' : 'Incus Daemon' }}</span>
+      </span>
+    </div>
+    <div class="drawer__kv">
       <span>Type</span>
-      <span class="vm-details-type">
+      <span class="vm-details-badge-wrap">
         <span class="vm-type-pill" :class="vm.is_vm ? 'vm-type-pill--kvm' : 'vm-type-pill--lxc'">
           {{ vm.is_vm ? 'KVM Virtual Machine' : 'LXC Container' }}
         </span>
@@ -59,8 +71,14 @@ const filteredConfig = computed(() => {
     <div class="drawer__kv"><span>Operating System</span><span>{{ vm.os || 'Linux' }}</span></div>
     <div v-if="vm.kernel" class="drawer__kv"><span>Kernel</span><span>{{ vm.kernel }}</span></div>
     <div v-if="vm.arch" class="drawer__kv"><span>Architecture</span><span>{{ vm.arch }}</span></div>
+    <div v-if="vm.display_port" class="drawer__kv">
+      <span>Display / SPICE</span>
+      <span class="drawer__mono">
+        Port {{ vm.display_port }}<template v-if="vm.web_port"> (Web: :{{ vm.web_port }})</template>
+      </span>
+    </div>
     <div class="drawer__kv"><span>Started</span><span>{{ formatStartedAt(vm.started_at) }}</span></div>
-    <div class="drawer__kv"><span>Auto-start on boot</span><span>{{ vm.auto_start ? 'Yes (boot.autostart)' : 'No' }}</span></div>
+    <div class="drawer__kv"><span>Auto-start on boot</span><span>{{ vm.auto_start ? 'Yes' : 'No' }}</span></div>
   </div>
 
   <div class="drawer__section">
@@ -69,17 +87,26 @@ const filteredConfig = computed(() => {
       <span>vCPU Allocation</span>
       <span>{{ vm.cpu_cores > 0 ? `${vm.cpu_cores} vCPUs` : 'Shared' }}</span>
     </div>
-    <div class="drawer__kv">
+    <div v-if="isRunning" class="drawer__kv">
       <span>Live CPU Usage</span>
       <span>{{ vm.cpu_percent.toFixed(1) }}%</span>
     </div>
     <div class="drawer__kv">
-      <span>Memory Usage</span>
-      <span>{{ formatBytes(vm.mem_used) }} / {{ formatBytes(vm.mem_total) }}</span>
+      <span>Memory</span>
+      <span v-if="isRunning">{{ formatBytes(vm.mem_used) }} / {{ formatBytes(vm.mem_total) }}</span>
+      <span v-else>{{ formatBytes(vm.mem_total) }} allocated</span>
     </div>
     <div v-if="vm.disk_total > 0" class="drawer__kv">
       <span>Root Storage zvol</span>
       <span>{{ formatBytes(vm.disk_used) }} / {{ formatBytes(vm.disk_total) }} (pool: {{ vm.disk_pool || 'fast' }})</span>
+    </div>
+  </div>
+
+  <div v-if="vm.passthrough && vm.passthrough.length > 0" class="drawer__section">
+    <h3>Hardware Passthrough</h3>
+    <div v-for="(dev, idx) in vm.passthrough" :key="idx" class="drawer__kv">
+      <span>Device {{ idx + 1 }}</span>
+      <span class="drawer__mono-val">{{ dev }}</span>
     </div>
   </div>
 
@@ -95,7 +122,9 @@ const filteredConfig = computed(() => {
     </div>
     <div class="drawer__kv">
       <span>Guest IPv4</span>
-      <span v-if="vm.ipv4.length === 0" class="drawer__empty-inline">None detected</span>
+      <span v-if="vm.ipv4.length === 0" class="drawer__empty-inline">
+        {{ isRunning ? 'None detected' : 'Offline' }}
+      </span>
       <span v-else class="drawer__mono">{{ vm.ipv4.join(', ') }}</span>
     </div>
   </div>
@@ -110,9 +139,32 @@ const filteredConfig = computed(() => {
 </template>
 
 <style scoped>
-.vm-details-type {
+.vm-details-badge-wrap {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+}
+
+.vm-manager-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+
+.vm-manager-pill--truenas {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.35);
+}
+
+.vm-manager-pill--incus {
+  background: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+  border-color: rgba(20, 184, 166, 0.35);
 }
 
 .vm-type-pill {
@@ -137,9 +189,20 @@ const filteredConfig = computed(() => {
   border-color: rgba(107, 114, 128, 0.3);
 }
 
+.drawer__dim-note {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
 .drawer__mono {
   font-family: ui-monospace, monospace;
   font-size: 0.85rem;
+}
+
+.drawer__mono-val {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  color: #cbd5e1;
 }
 
 .drawer__mono-key {

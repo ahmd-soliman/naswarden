@@ -17,32 +17,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ahmd-soliman/naswarden/internal/vm"
 )
 
-// Instance is one Incus virtual machine or container.
-type Instance struct {
-	Name       string            `json:"name"`
-	Type       string            `json:"type"`        // "virtual-machine" or "container"
-	Status     string            `json:"status"`      // "Running", "Stopped", "Frozen", etc.
-	StatusCode int               `json:"status_code"` // 103 (Running), 102 (Stopped)
-	IsVM       bool              `json:"is_vm"`       // true for KVM virtual-machine, false for LXC container
-	OS         string            `json:"os"`          // e.g. "Ubuntu 24.04"
-	Kernel     string            `json:"kernel"`      // e.g. "6.8.0-139-generic"
-	Arch       string            `json:"arch"`        // e.g. "x86_64"
-	CPUCores   int               `json:"cpu_cores"`   // Configured or detected vCPU count
-	CPUPercent float64           `json:"cpu_percent"` // Live CPU % calculated between refresh intervals
-	MemUsed    int64             `json:"mem_used"`    // Live memory bytes used
-	MemTotal   int64             `json:"mem_total"`   // Memory limit or total bytes allocated
-	DiskUsed   int64             `json:"disk_used"`   // Root disk zvol bytes used
-	DiskTotal  int64             `json:"disk_total"`  // Root disk zvol capacity bytes
-	DiskPool   string            `json:"disk_pool"`   // ZFS pool backing root disk (e.g. "fast")
-	IPv4       []string          `json:"ipv4"`        // Guest LAN IPv4 addresses
-	MAC        string            `json:"mac"`         // Primary network MAC address
-	Bridge     string            `json:"bridge"`      // Parent network bridge (e.g. "br0")
-	StartedAt  string            `json:"started_at"`  // RFC3339 timestamp
-	AutoStart  bool              `json:"auto_start"`  // Whether instance is configured for auto-start on boot
-	Config     map[string]string `json:"config"`      // Config details (limits, cloud-init, etc.)
-}
+// Instance is an alias to vm.Instance for backward compatibility.
+type Instance = vm.Instance
 
 type cpuSample struct {
 	usageNs   int64
@@ -223,6 +203,7 @@ func (c *Client) ListInstances(ctx context.Context) ([]Instance, error) {
 		inst := Instance{
 			Name:       raw.Name,
 			Type:       raw.Type,
+			Manager:    "incus",
 			Status:     raw.Status,
 			StatusCode: raw.StatusCode,
 			IsVM:       raw.Type == "virtual-machine",
