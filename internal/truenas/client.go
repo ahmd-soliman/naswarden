@@ -24,13 +24,29 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Client is a self-healing connection to the TrueNAS middleware. If the
+// websocket drops (TrueNAS reboot, network blip) every in-flight call fails
+// immediately and the next Call transparently redials, re-handshakes and
+// re-authenticates -- previously the read loop just exited and every later
+// call timed out until the whole process was restarted.
 type Client struct {
-	conn   *websocket.Conn
+	host, apiKey        string
+	useTLS, insecureTLS bool
+
 	nextID atomic.Int64
 
-	mu       sync.Mutex
-	pending  map[string]chan ddpMessage
-	connOnce chan struct{}
+	connMu sync.Mutex // guards conn and serializes (re)dialing
+	conn   *websocket.Conn
+
+	writeMu sync.Mutex // gorilla/websocket allows one concurrent writer
+
+	mu      sync.Mutex // guards pending
+	pending map[string]pendingCall
+}
+
+type pendingCall struct {
+	ch   chan ddpMessage
+	conn *websocket.Conn // so a dropped conn only fails its own calls
 }
 
 // ddpMessage covers every shape this client needs to send or receive:
@@ -64,16 +80,42 @@ func (e *ddpError) String() string {
 // handshake, then authenticates with an API key. host should include the
 // port if non-default (e.g. "192.0.2.10:8443"). insecureTLS skips
 // certificate verification, needed for TrueNAS's default self-signed UI
-// certificate on a LAN.
+// certificate on a LAN. The returned client redials on its own after a drop.
 func Connect(ctx context.Context, host, apiKey string, useTLS, insecureTLS bool) (*Client, error) {
+	c := &Client{
+		host: host, apiKey: apiKey, useTLS: useTLS, insecureTLS: insecureTLS,
+		pending: make(map[string]pendingCall),
+	}
+	if _, err := c.current(ctx); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// current returns the live connection, dialing a fresh one if there is none.
+func (c *Client) current(ctx context.Context) (*websocket.Conn, error) {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	if c.conn != nil {
+		return c.conn, nil
+	}
+	conn, err := c.dial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	c.conn = conn
+	return conn, nil
+}
+
+func (c *Client) dial(ctx context.Context) (*websocket.Conn, error) {
 	scheme := "ws"
-	if useTLS {
+	if c.useTLS {
 		scheme = "wss"
 	}
-	url := fmt.Sprintf("%s://%s/websocket", scheme, host)
+	url := fmt.Sprintf("%s://%s/websocket", scheme, c.host)
 
 	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	if useTLS && insecureTLS {
+	if c.useTLS && c.insecureTLS {
 		dialer.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // opt-in for self-signed LAN certs
 	}
 	conn, _, err := dialer.DialContext(ctx, url, nil)
@@ -81,39 +123,50 @@ func Connect(ctx context.Context, host, apiKey string, useTLS, insecureTLS bool)
 		return nil, fmt.Errorf("dial %s: %w", url, err)
 	}
 
-	c := &Client{
-		conn:     conn,
-		pending:  make(map[string]chan ddpMessage),
-		connOnce: make(chan struct{}),
-	}
-	go c.readLoop()
+	connected := make(chan struct{})
+	go c.readLoop(conn, connected)
 
-	if err := conn.WriteJSON(ddpMessage{Msg: "connect", Version: "1", Support: []string{"1"}}); err != nil {
+	if err := c.write(conn, ddpMessage{Msg: "connect", Version: "1", Support: []string{"1"}}); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("send connect handshake: %w", err)
 	}
 	select {
-	case <-c.connOnce:
+	case <-connected:
 	case <-ctx.Done():
 		conn.Close()
 		return nil, fmt.Errorf("waiting for DDP \"connected\" ack: %w", ctx.Err())
 	}
 
-	if _, err := c.Call(ctx, "auth.login_with_api_key", []any{apiKey}); err != nil {
+	if _, err := c.callOn(ctx, conn, "auth.login_with_api_key", []any{c.apiKey}); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("authenticate: %w", err)
 	}
-
-	return c, nil
+	return conn, nil
 }
 
-// Call invokes a method and waits for its response, correlated by ID.
+// Call invokes a method and waits for its response, correlated by ID. It
+// reconnects first if the previous connection was lost.
 func (c *Client) Call(ctx context.Context, method string, params []any) (json.RawMessage, error) {
+	conn, err := c.current(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", method, err)
+	}
+	return c.callOn(ctx, conn, method, params)
+}
+
+func (c *Client) write(conn *websocket.Conn, msg ddpMessage) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	_ = conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	return conn.WriteJSON(msg)
+}
+
+func (c *Client) callOn(ctx context.Context, conn *websocket.Conn, method string, params []any) (json.RawMessage, error) {
 	id := fmt.Sprintf("%d", c.nextID.Add(1))
 	respCh := make(chan ddpMessage, 1)
 
 	c.mu.Lock()
-	c.pending[id] = respCh
+	c.pending[id] = pendingCall{ch: respCh, conn: conn}
 	c.mu.Unlock()
 	defer func() {
 		c.mu.Lock()
@@ -122,7 +175,8 @@ func (c *Client) Call(ctx context.Context, method string, params []any) (json.Ra
 	}()
 
 	req := ddpMessage{Msg: "method", Method: method, Params: params, ID: id}
-	if err := c.conn.WriteJSON(req); err != nil {
+	if err := c.write(conn, req); err != nil {
+		c.drop(conn)
 		return nil, fmt.Errorf("write %s: %w", method, err)
 	}
 
@@ -137,31 +191,65 @@ func (c *Client) Call(ctx context.Context, method string, params []any) (json.Ra
 	}
 }
 
-func (c *Client) readLoop() {
-	connAckSent := false
+// drop discards a dead connection so the next Call redials, and fails every
+// call still waiting on it instead of letting each sit out its timeout.
+func (c *Client) drop(conn *websocket.Conn) {
+	conn.Close()
+
+	c.connMu.Lock()
+	if c.conn == conn {
+		c.conn = nil
+	}
+	c.connMu.Unlock()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, p := range c.pending {
+		if p.conn == conn {
+			select {
+			case p.ch <- ddpMessage{Msg: "error", Error: &ddpError{Reason: "connection lost"}}:
+			default:
+			}
+		}
+	}
+}
+
+func (c *Client) readLoop(conn *websocket.Conn, connected chan struct{}) {
+	defer c.drop(conn)
+	acked := false
 	for {
 		var msg ddpMessage
-		if err := c.conn.ReadJSON(&msg); err != nil {
+		if err := conn.ReadJSON(&msg); err != nil {
 			return
 		}
 
 		switch msg.Msg {
 		case "connected":
-			if !connAckSent {
-				connAckSent = true
-				close(c.connOnce)
+			if !acked {
+				acked = true
+				close(connected)
 			}
 		case "result", "error":
 			c.mu.Lock()
-			ch, ok := c.pending[msg.ID]
+			p, ok := c.pending[msg.ID]
 			c.mu.Unlock()
 			if ok {
-				ch <- msg
+				select {
+				case p.ch <- msg:
+				default:
+				}
 			}
 		}
 	}
 }
 
 func (c *Client) Close() error {
-	return c.conn.Close()
+	c.connMu.Lock()
+	conn := c.conn
+	c.conn = nil
+	c.connMu.Unlock()
+	if conn == nil {
+		return nil
+	}
+	return conn.Close()
 }
