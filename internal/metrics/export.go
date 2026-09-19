@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -68,6 +69,21 @@ var (
 		Name: "naswarden_replication_task_status",
 		Help: "ZFS replication task state (1 for active state).",
 	}, []string{"task_id", "name", "target_pool", "state", "job_state"})
+
+	replicationLastSuccess = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_replication_last_success_timestamp_seconds",
+		Help: "Unix time the replication task last finished successfully, as seen by this process.",
+	}, []string{"name"})
+
+	lastRefreshSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "naswarden_last_refresh_success_timestamp_seconds",
+		Help: "Unix time of the last refresh in which the core TrueNAS data (server, pools, datasets) was fetched.",
+	})
+
+	sourceStale = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_source_stale",
+		Help: "1 if the source's last refresh failed and its previous data is being served, else 0.",
+	}, []string{"source"})
 )
 
 // tracked remembers which label sets a gauge vector currently holds, so a
@@ -105,16 +121,17 @@ func (t *tracked) begin() (set func(v float64, labels ...string), done func()) {
 }
 
 var (
-	datasetUsedSeries  = newTracked(datasetUsedBytes)
-	datasetQuotaSeries = newTracked(datasetQuotaBytes)
-	poolAllocSeries    = newTracked(poolAllocatedBytes)
-	poolSizeSeries     = newTracked(poolSizeBytes)
-	poolHealthySeries  = newTracked(poolHealthy)
-	instanceSeries     = newTracked(instanceUp)
-	containerSeries    = newTracked(containerUp)
-	diskTempSeries     = newTracked(diskTemperature)
-	alertSeries        = newTracked(alertCount)
-	replicationSeries  = newTracked(replicationTaskStatus)
+	datasetUsedSeries     = newTracked(datasetUsedBytes)
+	datasetQuotaSeries    = newTracked(datasetQuotaBytes)
+	poolAllocSeries       = newTracked(poolAllocatedBytes)
+	poolSizeSeries        = newTracked(poolSizeBytes)
+	poolHealthySeries     = newTracked(poolHealthy)
+	instanceSeries        = newTracked(instanceUp)
+	containerSeries       = newTracked(containerUp)
+	diskTempSeries        = newTracked(diskTemperature)
+	alertSeries           = newTracked(alertCount)
+	replicationSeries     = newTracked(replicationTaskStatus)
+	replicationLastSeries = newTracked(replicationLastSuccess)
 )
 
 func init() {
@@ -129,6 +146,9 @@ func init() {
 		diskTemperature,
 		alertCount,
 		replicationTaskStatus,
+		replicationLastSuccess,
+		lastRefreshSuccess,
+		sourceStale,
 	)
 }
 
@@ -188,16 +208,57 @@ func UpdateAlerts(alerts []truenas.Alert) {
 	done()
 }
 
-// UpdateReplications refreshes the ZFS replication task status gauges.
+// lastSuccess remembers, per task, when it last finished successfully. The
+// API only reports the most recent run, so once a run fails the previous
+// success would otherwise be forgotten and "no success for N hours" could
+// never fire. Only the refresh goroutine touches it.
+var lastSuccess = map[string]float64{}
+
+// UpdateReplications refreshes the ZFS replication task gauges.
 func UpdateReplications(tasks []truenas.ReplicationTask) {
 	set, done := replicationSeries.begin()
+	setOK, doneOK := replicationLastSeries.begin()
+	live := map[string]struct{}{}
 	for _, t := range tasks {
-		if t.Enabled {
-			taskID := fmt.Sprintf("%d", t.ID)
-			set(1.0, taskID, t.Name, t.TargetPool, t.State, t.JobState)
+		if !t.Enabled {
+			continue
+		}
+		live[t.Name] = struct{}{}
+		taskID := fmt.Sprintf("%d", t.ID)
+		set(1.0, taskID, t.Name, t.TargetPool, t.State, t.JobState)
+		if t.JobState == "SUCCESS" && t.TimeFinished != nil {
+			lastSuccess[t.Name] = float64(*t.TimeFinished)
 		}
 	}
+	for name, ts := range lastSuccess {
+		if _, ok := live[name]; !ok {
+			delete(lastSuccess, name) // task deleted or disabled
+			continue
+		}
+		setOK(ts, name)
+	}
 	done()
+	doneOK()
+}
+
+// KnownSources are the optional data sources whose staleness is exported.
+var KnownSources = []string{"docker", "truenas-vms", "incus", "alerts", "replication"}
+
+// UpdateRefresh records a completed refresh: when it happened and which
+// sources are currently serving their previous snapshot.
+func UpdateRefresh(now time.Time, stale []string) {
+	lastRefreshSuccess.Set(float64(now.Unix()))
+	isStale := make(map[string]bool, len(stale))
+	for _, s := range stale {
+		isStale[s] = true
+	}
+	for _, src := range KnownSources {
+		v := 0.0
+		if isStale[src] {
+			v = 1.0
+		}
+		sourceStale.WithLabelValues(src).Set(v)
+	}
 }
 
 // UpdateInstances refreshes the VM and LXC container status gauges.

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-const props = defineProps<{ open: boolean; title: string; back?: string }>()
+// docked: on wide screens the panel sits beside the content, non-modal --
+// no backdrop, no focus trap, the list behind it stays usable.
+const props = defineProps<{ open: boolean; title: string; back?: string; docked?: boolean }>()
 const emit = defineEmits<{ close: []; back: [] }>()
 
 const drawer = ref<HTMLElement | null>(null)
@@ -47,7 +49,7 @@ function onKeydown(e: KeyboardEvent) {
     emit('close')
     return
   }
-  if (e.key !== 'Tab' || !drawer.value) return
+  if (e.key !== 'Tab' || !drawer.value || props.docked) return
   const items = [...drawer.value.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.hasAttribute('disabled'))
   if (items.length === 0) return
   const first = items[0]
@@ -69,13 +71,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <div class="drawer-backdrop" :class="{ open }" aria-hidden="true" @click="emit('close')" />
+  <div v-if="!docked" class="drawer-backdrop" :class="{ open }" aria-hidden="true" @click="emit('close')" />
   <div
     ref="drawer"
     class="drawer"
-    :class="{ open }"
+    :class="{ open, 'drawer--docked': docked }"
     role="dialog"
-    aria-modal="true"
+    :aria-modal="docked ? 'false' : 'true'"
     aria-labelledby="drawer-title"
     :inert="!open"
   >
