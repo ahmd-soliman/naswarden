@@ -40,11 +40,13 @@ type Vdev struct {
 }
 
 type VdevChild struct {
-	Disk           string `json:"disk"`
-	Status         string `json:"status"`
-	ReadErrors     int64  `json:"read_errors"`
-	WriteErrors    int64  `json:"write_errors"`
-	ChecksumErrors int64  `json:"checksum_errors"`
+	Disk           string   `json:"disk"`
+	Status         string   `json:"status"`
+	ReadErrors     int64    `json:"read_errors"`
+	WriteErrors    int64    `json:"write_errors"`
+	ChecksumErrors int64    `json:"checksum_errors"`
+	Temperature    *float64 `json:"temperature_c,omitempty"`
+	Standby        bool     `json:"standby"`
 }
 
 // rawPool mirrors pool.query's actual response shape -- topology.data[]
@@ -77,6 +79,21 @@ type rawPool struct {
 	} `json:"topology"`
 }
 
+// GetDiskTemperatures queries disk.temperatures on TrueNAS, returning a map of
+// drive identifier (e.g. "sda") to temperature in Celsius. Spun-down or standby
+// disks return a nil value.
+func GetDiskTemperatures(ctx context.Context, c *Client) (map[string]*float64, error) {
+	raw, err := c.Call(ctx, "disk.temperatures", []any{})
+	if err != nil {
+		return nil, fmt.Errorf("disk.temperatures: %w", err)
+	}
+	var temps map[string]*float64
+	if err := json.Unmarshal(raw, &temps); err != nil {
+		return nil, fmt.Errorf("disk.temperatures: decode: %w", err)
+	}
+	return temps, nil
+}
+
 // ListPools calls pool.query with no filters and returns every pool.
 func ListPools(ctx context.Context, c *Client) ([]Pool, error) {
 	raw, err := c.Call(ctx, "pool.query", []any{})
@@ -87,6 +104,8 @@ func ListPools(ctx context.Context, c *Client) ([]Pool, error) {
 	if err := json.Unmarshal(raw, &rawPools); err != nil {
 		return nil, fmt.Errorf("pool.query: decode: %w", err)
 	}
+
+	temps, _ := GetDiskTemperatures(ctx, c)
 
 	pools := make([]Pool, len(rawPools))
 	for i, rp := range rawPools {
@@ -99,20 +118,44 @@ func ListPools(ctx context.Context, c *Client) ([]Pool, error) {
 			vdev := Vdev{Name: vd.Name, Type: vd.Type, Status: vd.Status, Children: []VdevChild{}}
 			if len(vd.Children) > 0 {
 				for _, ch := range vd.Children {
-					vdev.Children = append(vdev.Children, VdevChild{
+					child := VdevChild{
 						Disk: ch.Disk, Status: ch.Status,
 						ReadErrors: ch.Stats.ReadErrors, WriteErrors: ch.Stats.WriteErrors,
 						ChecksumErrors: ch.Stats.ChecksumErrors,
-					})
+					}
+					if temps != nil {
+						if tempVal, ok := temps[ch.Disk]; ok {
+							if tempVal != nil {
+								child.Temperature = tempVal
+								child.Standby = false
+							} else {
+								child.Temperature = nil
+								child.Standby = true
+							}
+						}
+					}
+					vdev.Children = append(vdev.Children, child)
 				}
 			} else if vd.Disk != "" {
 				// A bare-disk vdev (e.g. boot-pool) has no children -- it
 				// IS the disk.
-				vdev.Children = []VdevChild{{
+				child := VdevChild{
 					Disk: vd.Disk, Status: vd.Status,
 					ReadErrors: vd.Stats.ReadErrors, WriteErrors: vd.Stats.WriteErrors,
 					ChecksumErrors: vd.Stats.ChecksumErrors,
-				}}
+				}
+				if temps != nil {
+					if tempVal, ok := temps[vd.Disk]; ok {
+						if tempVal != nil {
+							child.Temperature = tempVal
+							child.Standby = false
+						} else {
+							child.Temperature = nil
+							child.Standby = true
+						}
+					}
+				}
+				vdev.Children = append(vdev.Children, child)
 			}
 			pool.Vdevs = append(pool.Vdevs, vdev)
 		}
