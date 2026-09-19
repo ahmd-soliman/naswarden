@@ -393,7 +393,7 @@ function stackActive(name: string) {
 
         <section v-if="hasVMs" data-section="vms" v-show="sectionVisible('vms')">
           <h2>Virtual Machines & Containers</h2>
-          <div class="grid grid--vms">
+          <div class="grid">
             <VMCard
               v-for="vm in filteredVMs"
               :key="vm.name"
@@ -626,10 +626,6 @@ section h2 {
 
 .grid--datasets {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-}
-
-.grid--vms {
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
 }
 
 .empty {
