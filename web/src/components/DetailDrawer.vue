@@ -86,7 +86,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
       </div>
       <button ref="closeButton" class="drawer__close" aria-label="Close" @click="emit('close')">&times;</button>
     </div>
-    <div class="drawer__body">
+    <!-- focusable so keyboard users can scroll it when its content has nothing else to tab to -->
+    <div class="drawer__body" tabindex="0" role="region" aria-labelledby="drawer-title">
       <slot />
     </div>
   </div>
