@@ -109,12 +109,13 @@ export interface ServerInfo {
 export interface VM {
   name: string
   type: string // "virtual-machine" | "container"
+  manager: 'incus' | 'truenas'
   status: string // "Running" | "Stopped" | ...
   status_code: number
   is_vm: boolean
   os: string
-  kernel: string
-  arch: string
+  kernel?: string
+  arch?: string
   cpu_cores: number
   cpu_percent: number
   mem_used: number
@@ -123,11 +124,14 @@ export interface VM {
   disk_total: number
   disk_pool: string
   ipv4: string[]
-  mac: string
-  bridge: string
-  started_at: string
+  mac?: string
+  bridge?: string
+  started_at?: string
   auto_start: boolean
-  config: Record<string, string>
+  config?: Record<string, string>
+  display_port?: number
+  web_port?: number
+  passthrough?: string[]
 }
 
 interface StateMessage {
