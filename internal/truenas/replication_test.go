@@ -9,15 +9,15 @@ func TestDecodeReplication(t *testing.T) {
 	fixture := `[
 		{
 			"id": 24,
-			"name": "tank_BKP",
+			"name": "tank-backup",
 			"direction": "PUSH",
 			"transport": "LOCAL",
-			"source_datasets": ["tank/main", "tank/user-home"],
+			"source_datasets": ["tank/main", "tank/home"],
 			"target_dataset": "backup/tank",
 			"enabled": true,
 			"state": {
 				"state": "FINISHED",
-				"last_snapshot": "tank/user-home@auto-2026-09-19_00-00",
+				"last_snapshot": "tank/home@auto-2026-09-19_00-00",
 				"datetime": {"$date": 1789770304000}
 			},
 			"job": {
@@ -27,7 +27,7 @@ func TestDecodeReplication(t *testing.T) {
 				"time_finished": {"$date": 1789770304000},
 				"progress": {
 					"percent": 100,
-					"description": "Sending 7 of 7: tank/user-home@auto-2026-09-19_00-00"
+					"description": "Sending 7 of 7: tank/home@auto-2026-09-19_00-00"
 				}
 			}
 		}
@@ -43,7 +43,7 @@ func TestDecodeReplication(t *testing.T) {
 	}
 
 	r := rawList[0]
-	if r.Name != "tank_BKP" || r.TargetDataset != "backup/tank" {
+	if r.Name != "tank-backup" || r.TargetDataset != "backup/tank" {
 		t.Errorf("unexpected fields: %+v", r)
 	}
 	if r.Job == nil || r.Job.State != "SUCCESS" {

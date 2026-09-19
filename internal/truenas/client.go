@@ -78,7 +78,7 @@ func (e *ddpError) String() string {
 
 // Connect dials the TrueNAS websocket endpoint, performs the DDP "connect"
 // handshake, then authenticates with an API key. host should include the
-// port if non-default (e.g. "192.0.2.10:8443"). insecureTLS skips
+// port if non-default (e.g. "truenas.local:8443"). insecureTLS skips
 // certificate verification, needed for TrueNAS's default self-signed UI
 // certificate on a LAN. The returned client redials on its own after a drop.
 func Connect(ctx context.Context, host, apiKey string, useTLS, insecureTLS bool) (*Client, error) {

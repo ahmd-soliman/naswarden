@@ -134,11 +134,11 @@ func TestUpdateAlerts(t *testing.T) {
 
 func TestUpdateReplications(t *testing.T) {
 	tasks := []truenas.ReplicationTask{
-		{ID: 24, Name: "tank_BKP", TargetPool: "backup", State: "FINISHED", JobState: "SUCCESS", Enabled: true},
+		{ID: 24, Name: "tank-backup", TargetPool: "backup", State: "FINISHED", JobState: "SUCCESS", Enabled: true},
 	}
 	UpdateReplications(tasks)
 
-	if val := gaugeValue(replicationTaskStatus.WithLabelValues("24", "tank_BKP", "backup", "FINISHED", "SUCCESS")); val != 1.0 {
+	if val := gaugeValue(replicationTaskStatus.WithLabelValues("24", "tank-backup", "backup", "FINISHED", "SUCCESS")); val != 1.0 {
 		t.Errorf("expected 1.0, got %f", val)
 	}
 }

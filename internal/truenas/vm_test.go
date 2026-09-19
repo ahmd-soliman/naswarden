@@ -159,7 +159,7 @@ func TestListVMsMock(t *testing.T) {
 					"id": 39,
 					"attributes": {
 						"dtype": "DISK",
-						"path": "/dev/zvol/fast/vms/winvm-abc123",
+						"path": "/dev/zvol/fast/vms/winvm",
 						"type": "AHCI"
 					}
 				},
@@ -193,7 +193,7 @@ func TestListVMsMock(t *testing.T) {
 
 	mockZvolQueryJSON := `[
 		{
-			"name": "fast/vms/winvm-abc123",
+			"name": "fast/vms/winvm",
 			"volsize": {"parsed": 1099511627776},
 			"used": {"parsed": 130434760704}
 		}

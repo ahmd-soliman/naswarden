@@ -79,8 +79,8 @@ func TestBuildDisks(t *testing.T) {
 	for _, d := range got {
 		names = append(names, d.Name)
 	}
-	// sorted by pool name ("" first), then disk name
-	if want := []string{"sdx", "sdd", "sda", "sdg"}; !equal(names, want) {
+	// sorted by pool name, case-insensitive ("" first), then disk name
+	if want := []string{"sdx", "sdg", "sdd", "sda"}; !equal(names, want) {
 		t.Fatalf("order: got %v want %v", names, want)
 	}
 	byName := map[string]Disk{}

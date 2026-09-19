@@ -74,7 +74,7 @@ describe('formatCapacity', () => {
 
 describe('matchesDisk', () => {
   it('matches name, model, serial, pool and type', () => {
-    for (const q of ['sda', 'st24000', 'zxa25', 'p1', 'hdd']) expect(matchesDisk(disk(), q)).toBe(true)
+    for (const q of ['sda', 'st24000', 'zxa25', 'tank', 'hdd']) expect(matchesDisk(disk(), q)).toBe(true)
     expect(matchesDisk(disk(), 'samsung')).toBe(false)
     expect(matchesDisk(disk(), '')).toBe(true)
   })
