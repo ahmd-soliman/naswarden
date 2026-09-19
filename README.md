@@ -154,6 +154,13 @@ services:
       retries: 3
 ```
 
+### Resilience
+
+- **Reconnects on its own** if the TrueNAS websocket drops (reboot, network blip); no container restart needed.
+- **A failing source keeps its last good data.** If Docker, Incus or the TrueNAS VM query fails, its cards and metrics stay at the previous snapshot instead of vanishing, and the header shows `partial` naming the source.
+- **`/healthz`** returns `503` once no refresh has succeeded for three intervals (3 minutes), so a container healthcheck notices a lost TrueNAS.
+- **`/ws` is same-origin only.** A browser page served from a different host than the one it connects to is refused. Behind a reverse proxy, keep the original `Host` header (Caddy and nginx `proxy_set_header Host $host` do).
+
 ---
 
 ## Development
@@ -170,4 +177,8 @@ go run ./cmd/naswarden
 cd web
 npm install
 npm run build
+
+# Tests (CI runs all of these and checks the committed internal/web/dist is current)
+go test -race ./...
+npm test
 ```
