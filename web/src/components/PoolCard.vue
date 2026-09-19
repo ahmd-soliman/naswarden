@@ -56,6 +56,7 @@ function formatBytes(bytes: number): string {
 .pool-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--pool);
   border-radius: 10px;
   padding: 1.25rem;
   display: flex;
@@ -141,5 +142,11 @@ function formatBytes(bytes: number): string {
 .pool-card__scan-errors {
   color: #ef4444;
   font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar__fill {
+    transition: none;
+  }
 }
 </style>
