@@ -86,3 +86,30 @@ func TestUpdateContainers(t *testing.T) {
 		t.Errorf("expected 0.0, got %f", val)
 	}
 }
+
+func seriesCount(t *testing.T, vec *prometheus.GaugeVec) int {
+	t.Helper()
+	ch := make(chan prometheus.Metric, 100)
+	vec.Collect(ch)
+	close(ch)
+	n := 0
+	for range ch {
+		n++
+	}
+	return n
+}
+
+func TestVanishedSeriesAreDeletedNotReset(t *testing.T) {
+	UpdateContainers([]docker.Container{{Name: "a", Stack: "s", State: "running"}, {Name: "b", Stack: "s", State: "running"}})
+	if n := seriesCount(t, containerUp); n != 2 {
+		t.Fatalf("want 2 series, got %d", n)
+	}
+	UpdateContainers([]docker.Container{{Name: "a", Stack: "s", State: "running"}})
+	if n := seriesCount(t, containerUp); n != 1 {
+		t.Fatalf("removed container should drop its series, got %d", n)
+	}
+	UpdateContainers(nil)
+	if n := seriesCount(t, containerUp); n != 0 {
+		t.Fatalf("want 0 series, got %d", n)
+	}
+}

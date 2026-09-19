@@ -1,0 +1,28 @@
+version: "2"
+linters:
+  default: none
+  # staticcheck/unused (honnef IR builder) and unparam currently panic when
+  # analysing the Go 1.27 standard library, so they are left out until
+  # golangci-lint supports it.
+  enable:
+    - govet
+    - errcheck
+    - ineffassign
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - unconvert
+  settings:
+    gosec:
+      excludes:
+        - G104 # unhandled errors: errcheck already covers this, minus Close()
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [bodyclose, gosec]
+formatters:
+  enable:
+    - gofmt

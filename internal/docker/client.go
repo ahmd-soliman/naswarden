@@ -41,9 +41,9 @@ type containerSummary struct {
 // Compose labels -- confirmed present on the list response itself against
 // the live Docker API (no extra per-container call needed).
 const (
-	projectLabel = "com.docker.compose.project"
-	configLabel  = "com.docker.compose.project.config_files"
-	oneoffLabel  = "com.docker.compose.oneoff" // "True" for `docker compose run` containers
+	projectLabel  = "com.docker.compose.project"
+	configLabel   = "com.docker.compose.project.config_files"
+	oneoffLabel   = "com.docker.compose.oneoff" // "True" for `docker compose run` containers
 	iconLabel     = "naswarden.icon"            // optional: icon slug override, set on any service
 	ignoreLabel   = "naswarden.ignore"          // optional: "true" to exclude from stack health count
 	optionalLabel = "naswarden.optional"        // optional: "true" to exclude from stack health count
