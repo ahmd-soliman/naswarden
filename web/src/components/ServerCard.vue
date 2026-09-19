@@ -16,6 +16,14 @@ const memColor = computed(() => {
   return 'green'
 })
 
+// Thresholds are typical for a desktop-class AMD/Intel CPU under a NAS
+// workload (idle sits well under 60C) -- not a datasheet Tjmax figure.
+const tempColor = computed(() => {
+  if (props.server.cpu_temp_c >= 85) return 'red'
+  if (props.server.cpu_temp_c >= 70) return 'yellow'
+  return 'green'
+})
+
 function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let value = bytes
@@ -57,6 +65,13 @@ function formatUptime(seconds: number): string {
           CPU
         </span>
         <span class="server-card__value">{{ server.cpu_percent.toFixed(0) }}%</span>
+      </div>
+      <div class="server-card__stat">
+        <span class="server-card__label">
+          <svg class="metric-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z"/></svg>
+          Temp
+        </span>
+        <span class="server-card__value" :class="`temp--${tempColor}`">{{ server.cpu_temp_c.toFixed(0) }}&deg;C</span>
       </div>
       <div class="server-card__stat">
         <span class="server-card__label">System pressure (1/5/15m)</span>
@@ -126,6 +141,16 @@ function formatUptime(seconds: number): string {
 .server-card__value {
   font-size: 0.9rem;
   font-family: ui-monospace, monospace;
+}
+
+.temp--green {
+  color: #22c55e;
+}
+.temp--yellow {
+  color: #eab308;
+}
+.temp--red {
+  color: #ef4444;
 }
 
 .server-card__mem {

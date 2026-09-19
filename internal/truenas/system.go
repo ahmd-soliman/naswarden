@@ -36,6 +36,12 @@ type ServerInfo struct {
 	// distinction is visible instead of buried inside a single number.
 	ArcBytes   int64       `json:"arc_bytes"`
 	Interfaces []Interface `json:"interfaces"`
+	// CPUModel/Cores/PhysicalCores come straight from system.info -- static
+	// hardware facts, not something that needs the reporting subsystem.
+	CPUModel      string  `json:"cpu_model"`
+	Cores         int64   `json:"cores"`
+	PhysicalCores int64   `json:"physical_cores"`
+	CPUTempC      float64 `json:"cpu_temp_c"`
 }
 
 // Interface is a network interface's current link state and addresses --
@@ -50,11 +56,13 @@ type Interface struct {
 }
 
 type systemInfoResponse struct {
-	Hostname   string  `json:"hostname"`
-	Version    string  `json:"version"`
-	Physmem    int64   `json:"physmem"`
-	UptimeSecs float64 `json:"uptime_seconds"`
-	Cores      int64   `json:"cores"`
+	Hostname      string  `json:"hostname"`
+	Version       string  `json:"version"`
+	Physmem       int64   `json:"physmem"`
+	UptimeSecs    float64 `json:"uptime_seconds"`
+	Cores         int64   `json:"cores"` // logical cores (threads)
+	PhysicalCores int64   `json:"physical_cores"`
+	Model         string  `json:"model"` // e.g. "AMD Ryzen 5 5600G with Radeon Graphics"
 }
 
 // reportingGraph mirrors reporting.netdata_get_data's response shape:
@@ -102,6 +110,7 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 		map[string]string{"name": "memory"},
 		map[string]string{"name": "load"},
 		map[string]string{"name": "arcsize"},
+		map[string]string{"name": "cputemp"},
 	}
 	opts := map[string]any{"unit": "HOUR", "page": 1}
 	raw, err = c.Call(ctx, "reporting.netdata_get_data", []any{graphs, opts})
@@ -114,10 +123,13 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 	}
 
 	info := &ServerInfo{
-		Hostname:   sysInfo.Hostname,
-		Version:    sysInfo.Version,
-		UptimeSecs: sysInfo.UptimeSecs,
-		MemTotal:   sysInfo.Physmem,
+		Hostname:      sysInfo.Hostname,
+		Version:       sysInfo.Version,
+		UptimeSecs:    sysInfo.UptimeSecs,
+		MemTotal:      sysInfo.Physmem,
+		CPUModel:      sysInfo.Model,
+		Cores:         sysInfo.Cores,
+		PhysicalCores: sysInfo.PhysicalCores,
 	}
 
 	for _, g := range reportGraphs {
@@ -150,6 +162,12 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 		case "arcsize":
 			if v, ok := column(g.Legend, last, "size"); ok {
 				info.ArcBytes = int64(v)
+			}
+		case "cputemp":
+			// "cpu" is the aggregate/package column; the rest (cpu0, cpu1,
+			// ...) are per-core, more detail than an overview card needs.
+			if v, ok := column(g.Legend, last, "cpu"); ok {
+				info.CPUTempC = v
 			}
 		}
 	}
