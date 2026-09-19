@@ -123,3 +123,8 @@ export function iconCandidates(s: Stack): string[] {
   const list = [s.icon, ICON_ALIASES[s.name], s.name, imageSlug(s.members[0]?.image ?? '')]
   return [...new Set(list.filter((x): x is string => !!x))]
 }
+
+export function containerIconCandidates(c: Container): string[] {
+  const list = [c.icon, ICON_ALIASES[c.name], c.name, imageSlug(c.image)]
+  return [...new Set(list.filter((x): x is string => !!x))]
+}
