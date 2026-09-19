@@ -84,8 +84,9 @@ function formatBytes(bytes: number): string {
   gap: 0.4rem;
 }
 
-.container-card--stopped {
-  opacity: 0.6;
+/* Muted, not faded: opacity would drag the badge and status text below 4.5:1 */
+.container-card--stopped .container-card__name {
+  color: var(--text-dim);
 }
 
 .container-card__header {
