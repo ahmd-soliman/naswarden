@@ -86,7 +86,7 @@ function formatBytes(bytes: number): string {
 }
 
 .badge {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;

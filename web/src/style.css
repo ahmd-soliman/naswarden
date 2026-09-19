@@ -140,7 +140,7 @@ h1 {
 }
 
 .drawer__section h3 {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-dim);
@@ -179,7 +179,7 @@ h1 {
 .drawer__ro {
   display: inline-block;
   margin-left: 0.5rem;
-  font-size: 0.65rem;
+  font-size: 0.8rem;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--warn-t) 15%, transparent);
@@ -318,11 +318,10 @@ h1 {
 .drawer__row-name {
   font-family: ui-monospace, monospace;
   font-size: 0.85rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .drawer__row-meta {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
 }
 .drawer__row-end {
