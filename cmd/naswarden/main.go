@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -35,15 +36,12 @@ func main() {
 		port = "8080"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	client, err := truenas.Connect(ctx, host, apiKey, useTLS, insecureTLS)
-	cancel()
-	if err != nil {
-		slog.Error("failed to connect to TrueNAS", "err", err)
-		os.Exit(1)
-	}
+	// The connection is established lazily and retried on every refresh: the
+	// app must come up (and say why it has no data) even when TrueNAS is not
+	// ready yet, e.g. right after a boot or with a wrong host or API key.
+	client := truenas.NewClient(host, apiKey, useTLS, insecureTLS)
 	defer client.Close()
-	slog.Info("connected to TrueNAS", "host", host)
+	slog.Info("will connect to TrueNAS", "host", host)
 
 	// Docker container stats are optional -- naswarden runs fine without
 	// them if DOCKER_PROXY_URL isn't set. Always points at a
@@ -132,12 +130,14 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	server, err := truenas.GetServerInfo(ctx, client)
 	if err != nil {
 		slog.Error("failed to refresh server info", "err", err)
+		notifyError(hub, "server info", err)
 		return
 	}
 
 	pools, err := truenas.ListPools(ctx, client)
 	if err != nil {
 		slog.Error("failed to refresh pools", "err", err)
+		notifyError(hub, "pools", err)
 		return
 	}
 	metrics.UpdatePools(pools)
@@ -145,6 +145,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	datasets, err := truenas.ListDatasets(ctx, client)
 	if err != nil {
 		slog.Error("failed to refresh datasets", "err", err)
+		notifyError(hub, "datasets", err)
 		return
 	}
 	metrics.UpdateDatasets(datasets)
@@ -277,4 +278,18 @@ type lastGood struct {
 	disks        []truenas.Disk
 	alerts       []truenas.Alert
 	replications []truenas.ReplicationTask
+}
+
+// notifyError tells connected browsers why the core TrueNAS data could not be
+// refreshed, so a wrong host, wrong API key or a TrueNAS that is still booting
+// shows a reason instead of an empty page.
+func notifyError(hub *ws.Hub, what string, err error) {
+	payload, mErr := json.Marshal(map[string]any{
+		"type":    "error",
+		"message": fmt.Sprintf("could not refresh %s from TrueNAS: %v", what, err),
+	})
+	if mErr != nil {
+		return
+	}
+	hub.BroadcastNotice(payload)
 }

@@ -199,6 +199,11 @@ export interface ReplicationTask {
   enabled: boolean
 }
 
+interface ErrorMessage {
+  type: 'error'
+  message: string // why the core TrueNAS data could not be refreshed
+}
+
 interface StateMessage {
   type: 'state'
   updated_at?: number // unix seconds the backend took this snapshot
@@ -229,6 +234,7 @@ export function usePoolSocket() {
   const replications = ref<ReplicationTask[]>([])
   const connected = ref(false)
   const updatedAt = ref<number | null>(null)
+  const serverError = ref<string | null>(null)
   const staleSources = ref<string[]>([])
 
   let socket: WebSocket | null = null
@@ -244,8 +250,11 @@ export function usePoolSocket() {
     }
 
     socket.onmessage = (event) => {
-      const msg = JSON.parse(event.data) as StateMessage
-      if (msg.type === 'state') {
+      const msg = JSON.parse(event.data) as StateMessage | ErrorMessage
+      if (msg.type === 'error') {
+        serverError.value = msg.message
+      } else if (msg.type === 'state') {
+        serverError.value = null
         server.value = msg.server
         pools.value = msg.pools
         datasets.value = msg.datasets
@@ -273,5 +282,5 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources }
+  return { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources, serverError }
 }
