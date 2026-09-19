@@ -129,12 +129,12 @@ All configuration is provided via environment variables:
 
 | Env Var | Required | Default | Description |
 |---|---|---|---|
-| `TRUENAS_HOST` | **Yes** | — | TrueNAS host and port, e.g. `192.168.8.100:8443` |
+| `TRUENAS_HOST` | **Yes** | — | TrueNAS host and port, e.g. `truenas.local:8443` |
 | `TRUENAS_API_KEY` | **Yes** | — | API key generated in TrueNAS (Credentials → API Keys) |
 | `TRUENAS_TLS` | No | `false` | Set `true` to connect over `wss://` |
 | `TRUENAS_INSECURE_TLS` | No | `false` | Set `true` to skip certificate validation (e.g. self-signed TrueNAS certs) |
 | `DOCKER_PROXY_URL` | No | — | URL to read-only Docker socket proxy, e.g. `http://docker-proxy:2375` |
-| `INCUS_URL` | No | — | Incus server API URL, e.g. `https://192.168.8.100:8444` |
+| `INCUS_URL` | No | — | Incus server API URL, e.g. `https://truenas.local:8444` |
 | `INCUS_CLIENT_CERT` | No | — | Incus client certificate (PEM string, base64, or file path) |
 | `INCUS_CLIENT_KEY` | No | — | Incus client private key (PEM string, base64, or file path) |
 | `INCUS_INSECURE_TLS` | No | `true` | Set `false` to enforce Incus server TLS certificate validation |
@@ -155,12 +155,12 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - TRUENAS_HOST=192.168.8.100:8443
+      - TRUENAS_HOST=truenas.local:8443
       - TRUENAS_API_KEY=${TRUENAS_API_KEY}
       - TRUENAS_TLS=true
       - TRUENAS_INSECURE_TLS=true
       - DOCKER_PROXY_URL=http://docker-proxy:2375
-      - INCUS_URL=https://192.168.8.100:8444
+      - INCUS_URL=https://truenas.local:8444
       - INCUS_CLIENT_CERT=${INCUS_CLIENT_CERT}
       - INCUS_CLIENT_KEY=${INCUS_CLIENT_KEY}
       - INCUS_INSECURE_TLS=true
@@ -197,7 +197,7 @@ services:
 
 ```bash
 # Run backend
-export TRUENAS_HOST="192.168.8.100:8443"
+export TRUENAS_HOST="truenas.local:8443"
 export TRUENAS_API_KEY="your-api-key"
 export TRUENAS_TLS=true
 export TRUENAS_INSECURE_TLS=true

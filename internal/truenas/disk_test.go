@@ -35,7 +35,7 @@ func TestDiskRates(t *testing.T) {
 
 // The pool.query shape below is a trimmed copy of the real response from a
 // TrueNAS SCALE 25.10.7 box (mirror vdev with per-disk stats.bytes counters).
-const poolQueryFixture = `[{"name":"P1","topology":{"data":[
+const poolQueryFixture = `[{"name":"tank","topology":{"data":[
  {"name":"mirror-0","type":"MIRROR","status":"ONLINE","stats":{"read_errors":0},"children":[
   {"name":"a","disk":"sda","status":"ONLINE","stats":{"read_errors":0,"write_errors":0,"checksum_errors":2,"bytes":[0,1039663050752,2480755752960,0,0,0,0]}},
   {"name":"b","disk":"sdb","status":"DEGRADED","stats":{"read_errors":1,"write_errors":0,"checksum_errors":0,"bytes":[0,10,20,0,0,0,0]}}]},
@@ -63,8 +63,8 @@ func TestCollectMembers(t *testing.T) {
 func TestBuildDisks(t *testing.T) {
 	rot := 7200
 	all := []rawDiskDetail{
-		{Name: "sdg", Model: "WD", Size: 6, Type: "HDD", ImportedZpool: s("S_BKP")},
-		{Name: "sda", Model: "ST24000", Size: 24, Type: "HDD", RotationRate: &rot, Bus: "ATA", ImportedZpool: s("P1")},
+		{Name: "sdg", Model: "WD", Size: 6, Type: "HDD", ImportedZpool: s("backup")},
+		{Name: "sda", Model: "ST24000", Size: 24, Type: "HDD", RotationRate: &rot, Bus: "ATA", ImportedZpool: s("tank")},
 		{Name: "sdd", Model: "INTENSO", Type: "SSD", ImportedZpool: s("boot-pool")},
 		{Name: "sdx", Model: "spare", Type: "SSD"},
 	}
@@ -79,8 +79,8 @@ func TestBuildDisks(t *testing.T) {
 	for _, d := range got {
 		names = append(names, d.Name)
 	}
-	// sorted by pool name ("" first), then disk name
-	if want := []string{"sdx", "sdd", "sda", "sdg"}; !equal(names, want) {
+	// sorted by pool name, case-insensitive ("" first), then disk name
+	if want := []string{"sdx", "sdg", "sdd", "sda"}; !equal(names, want) {
 		t.Fatalf("order: got %v want %v", names, want)
 	}
 	byName := map[string]Disk{}
@@ -88,7 +88,7 @@ func TestBuildDisks(t *testing.T) {
 		byName[d.Name] = d
 	}
 	a := byName["sda"]
-	if a.Pool != "P1" || a.Vdev != "mirror-0" || a.Status != "ONLINE" || a.RotationRate != 7200 || a.ChecksumErrors != 3 {
+	if a.Pool != "tank" || a.Vdev != "mirror-0" || a.Status != "ONLINE" || a.RotationRate != 7200 || a.ChecksumErrors != 3 {
 		t.Fatalf("sda: %+v", a)
 	}
 	if a.TempC == nil || *a.TempC != 49 || a.Temp7dMax == nil || *a.Temp7dMax != 55 || a.Standby {
