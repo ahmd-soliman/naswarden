@@ -73,7 +73,7 @@ func ValidateHost(address string) error {
 	}
 	u, err := url.Parse(address)
 	if err != nil {
-		return fmt.Errorf("%q: %v: %s", address, err, want)
+		return fmt.Errorf("%q: %w: %s", address, err, want)
 	}
 	switch u.Scheme {
 	case "tcp", "http", "https":
