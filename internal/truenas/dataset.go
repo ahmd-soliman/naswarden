@@ -69,7 +69,10 @@ func ListDatasets(ctx context.Context, c *Client) ([]Dataset, error) {
 		return nil, fmt.Errorf("pool.dataset.query: decode: %w", err)
 	}
 
-	var datasets []Dataset
+	// Non-nil: with no quota anywhere this must still marshal as [], not
+	// null -- the UI iterates it unconditionally, and a null blanked the
+	// whole page on any TrueNAS without dataset quotas.
+	datasets := []Dataset{}
 	for _, rd := range rawDatasets {
 		var quota int64
 		var source string
