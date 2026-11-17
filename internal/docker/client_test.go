@@ -2,8 +2,11 @@ package docker
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -89,6 +92,12 @@ func TestApplyInspect(t *testing.T) {
 // dockerAPI serves just enough of the Docker Engine API for ListContainers.
 func dockerAPI(t *testing.T, list string, failStatsFor string) *Client {
 	t.Helper()
+	srv := httptest.NewServer(dockerMux(list, failStatsFor))
+	t.Cleanup(srv.Close)
+	return NewClient(srv.URL)
+}
+
+func dockerMux(list string, failStatsFor string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/containers/json", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(list)) })
 	mux.HandleFunc("/containers/", func(w http.ResponseWriter, r *http.Request) {
@@ -108,9 +117,7 @@ func dockerAPI(t *testing.T, list string, failStatsFor string) *Client {
 			http.NotFound(w, r)
 		}
 	})
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-	return NewClient(srv.URL)
+	return mux
 }
 
 const containerList = `[
@@ -167,6 +174,146 @@ func TestListContainersSurvivesAStatsFailure(t *testing.T) {
 	}
 	if len(got) != 2 || got[0].CPUPercent != 0 || got[0].RestartPolicy != "always" {
 		t.Errorf("got %+v, want both containers, web with zero stats but inspect data", got)
+	}
+}
+
+// A mounted Docker socket ("unix:///var/run/docker.sock") is used as is,
+// without a proxy in front.
+func TestListContainersOverUnixSocket(t *testing.T) {
+	// Short path: a unix socket path is limited to ~108 bytes, t.TempDir()
+	// can exceed that on some systems.
+	dir, err := os.MkdirTemp("", "nwdock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "docker.sock")
+
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: dockerMux(containerList, "")}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { srv.Close() })
+
+	got, err := NewClient("unix://" + sock).ListContainers(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Name != "web" || got[0].MemUsed != 500 {
+		t.Errorf("got %+v, want web and db with web's stats", got)
+	}
+}
+
+// shortSocket listens on a Unix socket in a short temp path (socket paths are
+// limited to ~108 bytes; t.TempDir() can exceed that).
+func shortSocket(t *testing.T) (string, net.Listener) {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "nwsock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	path := filepath.Join(dir, "docker.sock")
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	return path, ln
+}
+
+func TestIsSocket(t *testing.T) {
+	path, _ := shortSocket(t)
+	if !IsSocket(path) {
+		t.Errorf("IsSocket(%q) = false for a listening socket", path)
+	}
+	file := filepath.Join(t.TempDir(), "plain")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if IsSocket(file) || IsSocket(filepath.Join(t.TempDir(), "missing")) {
+		t.Error("IsSocket is true for a regular or missing file")
+	}
+}
+
+func TestCheckSocket(t *testing.T) {
+	path, _ := shortSocket(t)
+	if err := CheckSocket(path); err != nil {
+		t.Errorf("CheckSocket on a listening socket = %v", err)
+	}
+	if err := CheckSocket(path + ".missing"); err == nil || !strings.Contains(err.Error(), "cannot connect") {
+		t.Errorf("missing socket: err = %v, want cannot connect", err)
+	}
+
+	// No permission: the error names the fix. Root ignores file
+	// permissions, so this part only runs as a normal user.
+	if os.Geteuid() == 0 {
+		t.Log("running as root: skipping the permission case")
+		return
+	}
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckSocket(path); err == nil || !strings.Contains(err.Error(), "socket's group") {
+		t.Errorf("no permission: err = %v, want the group hint", err)
+	}
+}
+
+func TestNewClientAddresses(t *testing.T) {
+	for in, want := range map[string]string{
+		"http://docker-proxy:2375/":   "http://docker-proxy:2375",
+		"tcp://docker-proxy:2375":     "http://docker-proxy:2375", // DOCKER_HOST form
+		"unix:///var/run/docker.sock": "http://docker",            // dialled over the socket
+	} {
+		if c := NewClient(in); c.baseURL != want {
+			t.Errorf("NewClient(%q).baseURL = %q, want %q", in, c.baseURL, want)
+		}
+	}
+}
+
+func TestValidateHost(t *testing.T) {
+	for _, ok := range []string{
+		"tcp://docker-proxy:2375",
+		"http://docker-proxy:2375",
+		"http://docker-proxy:2375/",
+		"https://docker.example:2376",
+		"unix:///var/run/docker.sock",
+	} {
+		if err := ValidateHost(ok); err != nil {
+			t.Errorf("ValidateHost(%q) = %v, want ok", ok, err)
+		}
+	}
+	for _, bad := range []string{
+		"docker-proxy:2375",     // no scheme
+		"ssh://user@nas",        // Docker form naswarden can't use
+		"fd://",                 // same
+		"unix://",               // no socket path
+		"unix://var/run/x.sock", // relative path
+		"tcp://",                // no host
+		"http://proxy:2375/api", // a path would be prefixed to every call
+		"http://proxy:2375?x=1", // so would a query
+		"http://proxy:2375?",    // even an empty one
+		"tcp://proxy:2375#frag", // or a fragment
+		"",                      // empty
+	} {
+		if err := ValidateHost(bad); err == nil {
+			t.Errorf("ValidateHost(%q) = nil, want an error", bad)
+		}
+	}
+}
+
+// DOCKER_HOST=tcp://... reaches a proxy over plain HTTP.
+func TestListContainersOverTCPAddress(t *testing.T) {
+	srv := httptest.NewServer(dockerMux(containerList, ""))
+	t.Cleanup(srv.Close)
+	got, err := NewClient("tcp://" + strings.TrimPrefix(srv.URL, "http://")).ListContainers(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Errorf("got %d containers, want 2", len(got))
 	}
 }
 

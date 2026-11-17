@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -47,15 +48,27 @@ func main() {
 	defer client.Close()
 	slog.Info("will connect to TrueNAS", "host", host)
 
-	// Docker container stats are optional -- naswarden runs fine without
-	// them if DOCKER_PROXY_URL isn't set. Always points at a
-	// tecnativa/docker-socket-proxy instance (read-only, CONTAINERS=1),
-	// never a raw docker.sock mount into naswarden itself.
+	// Stacks and containers are optional: see dockerAddress for where the
+	// Docker API is found. naswarden only sends GET requests; a proxy
+	// enforces that, a mounted socket does not. A bad value or an unusable
+	// socket is reported once here, not as a failed refresh every minute; the
+	// rest of the dashboard runs without Docker.
 	var dockerClient *docker.Client
-	if proxyURL := os.Getenv("DOCKER_PROXY_URL"); proxyURL != "" {
-		dockerClient = docker.NewClient(proxyURL)
-		slog.Info("docker container stats enabled", "proxy", proxyURL)
+	dockerVar, dockerHost, warning, err := dockerAddress(os.Getenv, docker.IsSocket)
+	if warning != "" {
+		slog.Warn(warning, "docker_proxy_url", os.Getenv("DOCKER_PROXY_URL"), "docker_host", os.Getenv("DOCKER_HOST"))
 	}
+	if path, ok := strings.CutPrefix(dockerHost, "unix://"); ok && err == nil {
+		err = docker.CheckSocket(path)
+	}
+	switch {
+	case err != nil:
+		slog.Error("docker container stats disabled", "err", err)
+	case dockerHost != "":
+		dockerClient = docker.NewClient(dockerHost)
+		slog.Info("docker container stats enabled", "from", dockerVar, "address", dockerHost)
+	}
+	dockerStat := newDockerStatus(dockerVar, dockerHost, err)
 
 	// Incus VM & container monitoring is optional -- naswarden runs fine
 	// without it if INCUS_URL or credentials aren't set.
@@ -80,7 +93,7 @@ func main() {
 
 	hub := ws.NewHub()
 	health := newHealth(refreshInterval * 3)
-	cache := &lastGood{}
+	cache := &lastGood{docker: dockerStat}
 	diskRates := truenas.NewDiskRates()
 
 	// Refresh loop: poll TrueNAS, Docker, and Incus, push to every connected
@@ -256,14 +269,17 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		// Sources whose data is the previous snapshot because this refresh
 		// failed ("docker", "incus", "truenas-vms", ...).
 		"stale_sources": append([]string{}, stale...),
-		"server":        server,
-		"pools":         pools,
-		"datasets":      datasets,
-		"containers":    containers,
-		"vms":           vms,
-		"disks":         disks,
-		"alerts":        alerts,
-		"replications":  replications,
+		// Whether Docker is available and how (or why not), for the footer
+		// note and the "Docker not connected" card.
+		"docker":       cache.docker,
+		"server":       server,
+		"pools":        pools,
+		"datasets":     datasets,
+		"containers":   containers,
+		"vms":          vms,
+		"disks":        disks,
+		"alerts":       alerts,
+		"replications": replications,
 	})
 	if err != nil {
 		slog.Error("failed to marshal state payload", "err", err)
@@ -283,6 +299,7 @@ type lastGood struct {
 	disks        []truenas.Disk
 	alerts       []truenas.Alert
 	replications []truenas.ReplicationTask
+	docker       dockerStatus // fixed at startup; sent with every state
 }
 
 // notifyError tells connected browsers why the core TrueNAS data could not be
@@ -292,6 +309,9 @@ func notifyError(hub *ws.Hub, what string, err error) {
 	payload, mErr := json.Marshal(map[string]any{
 		"type":    "error",
 		"message": fmt.Sprintf("could not refresh %s from TrueNAS: %v", what, err),
+		// The likely fix, when the error is a recognisable one (wrong port,
+		// untrusted certificate, rejected key, ...); "" otherwise.
+		"hint": truenas.Hint(err),
 	})
 	if mErr != nil {
 		return

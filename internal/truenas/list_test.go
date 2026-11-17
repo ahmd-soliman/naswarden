@@ -211,3 +211,19 @@ func TestGetServerInfoAssemblesGraphsAndInterfaces(t *testing.T) {
 		t.Errorf("interfaces = %+v, want only the link-up eno1 at 1000 Mb/s", info.Interfaces)
 	}
 }
+
+// With no quota on any dataset (common on a fresh TrueNAS) the list must
+// still marshal as [], not null: a null blanked the whole UI.
+func TestListDatasetsWithoutQuotasIsEmptyNotNull(t *testing.T) {
+	c := methodServer(t, map[string]string{
+		"pool.dataset.query": `[{"name":"tank","used":{"parsed":10},"available":{"parsed":90}}]`,
+	})
+	datasets, err := ListDatasets(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := json.Marshal(datasets)
+	if string(out) != "[]" {
+		t.Errorf("datasets = %s, want []", out)
+	}
+}

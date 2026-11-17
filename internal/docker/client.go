@@ -1,22 +1,33 @@
-// Package docker talks to the Docker Engine API over plain HTTP -- not a
-// direct /var/run/docker.sock mount, which would be root-equivalent host
-// access. naswarden is meant to connect to a tecnativa/docker-socket-proxy
-// instance instead, configured with only CONTAINERS=1 (read-only GET
-// access to list/inspect/stats; POST/write access is disabled by default
-// in that proxy, confirmed against its own docs -- naswarden can never
-// issue a start/stop/exec/delete call even if it wanted to).
+// Package docker reads containers from the Docker Engine API, and only ever
+// sends GET requests. It reaches the API one of two ways (DOCKER_HOST, or
+// DOCKER_PROXY_URL for a proxy):
+//
+//   - Recommended: a tecnativa/docker-socket-proxy over HTTP, configured
+//     with only CONTAINERS=1 (list/inspect/stats; POST/write access is
+//     disabled by default in that proxy, confirmed against its own docs).
+//     The proxy enforces read-only: naswarden could not start, stop, exec
+//     or delete anything even if it tried.
+//   - The Docker socket mounted into naswarden. Simpler, but the socket is
+//     root-equivalent host access and enforces nothing: read-only rests on
+//     this package's code alone.
 package docker
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Client struct {
@@ -24,9 +35,81 @@ type Client struct {
 	http    *http.Client
 }
 
-// NewClient takes the socket-proxy's base URL, e.g. "http://docker-proxy:2375".
-func NewClient(baseURL string) *Client {
-	return &Client{baseURL: baseURL, http: &http.Client{}}
+// DefaultSocket is where the Docker socket is mounted by convention, and
+// where Docker's own CLI looks when DOCKER_HOST is not set.
+const DefaultSocket = "/var/run/docker.sock"
+
+// IsSocket reports whether path exists and is a Unix socket.
+func IsSocket(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.Mode()&os.ModeSocket != 0
+}
+
+// CheckSocket connects to the Docker socket at path once, so a setup problem
+// is reported at startup with its likely fix, instead of as a failed refresh
+// every minute.
+func CheckSocket(path string) error {
+	conn, err := net.DialTimeout("unix", path, 2*time.Second)
+	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			return fmt.Errorf("no permission to use the Docker socket %s: run naswarden with the socket's group (usually docker, gid 999)", path)
+		}
+		return fmt.Errorf("cannot connect to the Docker socket %s: %w", path, err)
+	}
+	return conn.Close()
+}
+
+// ValidateHost reports whether address is a Docker API address NewClient can
+// use: tcp:// or http(s):// with a host, or unix:// with an absolute socket
+// path. Docker's other DOCKER_HOST forms (ssh://, fd://, npipe://) are not
+// supported. The error says what is wrong; the caller names the variable.
+func ValidateHost(address string) error {
+	const want = "use tcp://host:port, http(s)://host:port or unix:///path/to/docker.sock"
+	if path, ok := strings.CutPrefix(address, "unix://"); ok {
+		if !strings.HasPrefix(path, "/") {
+			return fmt.Errorf("%q has no absolute socket path: %s", address, want)
+		}
+		return nil
+	}
+	u, err := url.Parse(address)
+	if err != nil {
+		return fmt.Errorf("%q: %w: %s", address, err, want)
+	}
+	switch u.Scheme {
+	case "tcp", "http", "https":
+	default:
+		return fmt.Errorf("%q: unsupported scheme: %s", address, want)
+	}
+	// Anything after the host and port would be glued in front of every
+	// API path, e.g. "?x=1/containers/json".
+	if u.Host == "" || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.ForceQuery {
+		return fmt.Errorf("%q is not a host and port: %s", address, want)
+	}
+	return nil
+}
+
+// NewClient takes the Docker API address in DOCKER_HOST form: a socket proxy,
+// "tcp://docker-proxy:2375" (or "http://..."), or a mounted Docker socket,
+// "unix:///var/run/docker.sock". naswarden only ever sends GET requests either
+// way; the proxy enforces that, the socket itself does not.
+func NewClient(address string) *Client {
+	if rest, ok := strings.CutPrefix(address, "tcp://"); ok {
+		// Docker's tcp:// is plain HTTP (TLS needs client certificates,
+		// which naswarden does not support).
+		address = "http://" + rest
+	}
+	if path, ok := strings.CutPrefix(address, "unix://"); ok {
+		var dialer net.Dialer
+		transport := &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return dialer.DialContext(ctx, "unix", path)
+			},
+		}
+		// The host part is required by net/http but never used: every
+		// request goes over the socket.
+		return &Client{baseURL: "http://docker", http: &http.Client{Transport: transport}}
+	}
+	return &Client{baseURL: strings.TrimRight(address, "/"), http: &http.Client{}}
 }
 
 type containerSummary struct {

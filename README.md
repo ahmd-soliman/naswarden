@@ -62,9 +62,9 @@ Demo data, not a real system.
 
 ## Zero-Mutation Read-Only Architecture
 
-**NasWarden** is strictly a read-only telemetry dashboard. It cannot mutate the host, start/stop containers, or alter datasets:
+**NasWarden** is strictly a read-only telemetry dashboard. It never changes the host, starts or stops containers, or alters datasets. What it could do if it were compromised depends on the access you give it:
 - **TrueNAS API**: Connects over WebSocket (`wss://`) with an API key and sends only read queries (`pool.query`, `pool.dataset.query`, `disk.details`, `vm.query`, `alert.list`, `system.info` and similar). What the key itself may do is up to you: see [Security notes](#security-notes).
-- **Docker Isolation**: Never mounts `/var/run/docker.sock` directly into NasWarden. It communicates over HTTP with a read-only [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy) container scoped strictly to `CONTAINERS=1` (all mutating POST, PUT, and DELETE calls are blocked at the network proxy).
+- **Docker Isolation**: NasWarden only sends GET requests to Docker. The recommended setup puts a read-only [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy) in between, scoped strictly to `CONTAINERS=1`, so all mutating POST, PUT, and DELETE calls are also blocked at the proxy. Mounting the socket into NasWarden directly also works, but then nothing but NasWarden's own code keeps it read-only.
 - **Incus API**: Communicates via mTLS REST API (`GET /1.0/instances?recursion=2`).
 
 ---
@@ -76,7 +76,7 @@ NasWarden needs one credential (a TrueNAS API key) and can use two optional ones
 | Access | What it needs | Can it be read-only? |
 |---|---|---|
 | TrueNAS API (required) | An API key of a user with the **Readonly Admin** role | Yes |
-| Docker stacks and containers (optional) | The read-only socket proxy; no key | Listing and inspecting only |
+| Docker stacks and containers (optional) | The read-only socket proxy, or the Docker socket; no key | With the proxy: listing and inspecting only. With the socket: no |
 | Incus VMs and containers (optional) | A client certificate trusted by Incus | No: with Incus 6.0 a certificate is not read-only (see below) |
 
 ### 1. TrueNAS API key (required)
@@ -90,7 +90,16 @@ The key takes the rights of its user. The Readonly Admin role is enough for ever
 
 ### 2. Docker stacks and containers (optional)
 
-Run a [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy) next to NasWarden with `CONTAINERS=1`, mount the Docker socket into the proxy only (read-only), and set `DOCKER_PROXY_URL=http://<proxy>:2375`. No key is involved. See [Deployment](#deployment) for a complete example. Without `DOCKER_PROXY_URL` the Stacks and Containers sections are simply absent.
+Give NasWarden access to the Docker API in one of two ways. No key is involved either way. Without either, the Stacks and Containers sections are simply absent.
+
+- **Recommended, a read-only proxy:** run a [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy) next to NasWarden with `CONTAINERS=1`, mount the Docker socket into the proxy only, and set `DOCKER_PROXY_URL=http://<proxy>:2375` (or, in Docker's own form, `DOCKER_HOST=tcp://<proxy>:2375`). See [Deployment](#deployment) for a complete example.
+
+  In the TrueNAS catalog app, with a proxy you run yourself (for example as its own compose stack): open the app and choose **Edit**, add the proxy's Docker network under **Network Configuration → Networks** with the **naswarden** container, and add `DOCKER_PROXY_URL` = `http://<proxy container name>:2375` under **Additional Environment Variables**.
+- **Or the Docker socket itself:** mount `/var/run/docker.sock` into NasWarden and run NasWarden with the socket's group (`docker`, usually gid 999). NasWarden finds a socket mounted at that path on its own, like Docker's own CLI does; set `DOCKER_HOST=unix:///<path>` only if you mount it somewhere else. Simpler, but mounting the socket read-only does not make Docker read-only: whatever can reach the socket can control Docker. NasWarden only sends GET requests, but nothing enforces that. If the group is wrong, the log says so at startup.
+
+  In the TrueNAS catalog app, open the app and choose **Edit**:
+  1. **User and Group Configuration → Group:** `999`.
+  2. **Storage → Additional Storage → Add:** type **Host Path**, host path `/var/run/docker.sock`, mount path `/var/run/docker.sock`, **Read Only** on.
 
 ### 3. Incus (optional)
 
@@ -117,7 +126,7 @@ NasWarden only sends `GET /1.0/instances?recursion=2`, but with Incus 6.0 a trus
 
 - **Use a read-only API key.** A TrueNAS API key has the rights of the user it belongs to. NasWarden only reads, but a key from an administrator account could change anything if it leaked. Create a dedicated user (Credentials → Users → Add) with the **Readonly Admin** role, then add the key for that user (on that user's Access → View API Keys). That role covers every call NasWarden makes.
 - **The dashboard has no login.** Anyone who can reach the port sees your pools, disks and containers. Keep it on your LAN, or put it behind an authenticating reverse proxy or access gateway. Do not expose it to the internet as is.
-- **Docker access is limited, not zero.** The socket proxy only allows listing and inspecting containers. An inspect response includes each container's environment variables; NasWarden does not read or show them, but the proxy would return them to a compromised NasWarden. Leave `DOCKER_PROXY_URL` unset if you do not want Docker in the dashboard.
+- **Docker access is limited, not zero.** The socket proxy only allows listing and inspecting containers. An inspect response includes each container's environment variables; NasWarden does not read or show them, but the proxy would return them to a compromised NasWarden. With the socket mounted directly (no proxy), nothing limits that access at all. If you do not want Docker in the dashboard, set neither variable and do not mount the socket into NasWarden.
 - **Incus certificates are not read-only** (Incus 6.0). See [Setup](#3-incus-optional).
 - **Certificates.** `TRUENAS_INSECURE_TLS=true` skips certificate checks, which is common with TrueNAS's self-signed certificate on a trusted LAN. With a certificate your clients trust, leave it off.
 
@@ -197,7 +206,8 @@ All configuration is provided via environment variables:
 | `TRUENAS_API_KEY` | **Yes** | — | API key generated in TrueNAS (Credentials → Users → the user → Access → View API Keys, 25.x); see [Setup](#setup) |
 | `TRUENAS_TLS` | No | `false` | Set `true` to connect over `wss://` |
 | `TRUENAS_INSECURE_TLS` | No | `false` | Set `true` to skip certificate validation (e.g. self-signed TrueNAS certs) |
-| `DOCKER_PROXY_URL` | No | — | URL to read-only Docker socket proxy, e.g. `http://docker-proxy:2375` |
+| `DOCKER_PROXY_URL` | No | — | Read-only Docker socket proxy for stacks and containers, e.g. `http://docker-proxy:2375`. Proxies only (`http://`, `https://`, `tcp://`); for the socket use `DOCKER_HOST`. Takes precedence over `DOCKER_HOST` |
+| `DOCKER_HOST` | No | `unix:///var/run/docker.sock` if a socket is mounted there | Docker API in Docker's own form: a socket mounted elsewhere, `unix:///<path>`, or a proxy, `tcp://docker-proxy:2375`. Ignored when `DOCKER_PROXY_URL` is set |
 | `INCUS_URL` | No | — | Incus server API URL, e.g. `https://truenas.local:8444` |
 | `INCUS_CLIENT_CERT` | No | — | Incus client certificate (PEM string, base64, or file path) |
 | `INCUS_CLIENT_KEY` | No | — | Incus client private key (PEM string, base64, or file path) |
@@ -234,7 +244,7 @@ services:
 
   # Scoped read-only proxy: blocks all write/mutating API requests
   docker-proxy:
-    image: tecnativa/docker-socket-proxy:latest
+    image: ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
     container_name: naswarden-docker-proxy
     restart: unless-stopped
     environment:

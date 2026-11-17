@@ -117,4 +117,35 @@ describe('usePoolSocket', () => {
     sock.onerror?.()
     expect(sock.closed).toBe(true)
   })
+
+  it('keeps the Docker status from the state message', () => {
+    const { docker } = usePoolSocket()
+    last().onopen?.()
+    last().send(state({ docker: { state: 'on' } }))
+    expect(docker.value).toEqual({ state: 'on' })
+    // A backend older than 1.1.0 sends no status: nothing to show.
+    last().send(state())
+    expect(docker.value).toBeNull()
+  })
+
+  it('shows the hint with the error, and clears both on the next state', () => {
+    const { serverError, serverHint } = usePoolSocket()
+    last().onopen?.()
+    last().send({ type: 'error', message: 'could not refresh server info', hint: 'Check the HTTPS port.' })
+    expect(serverError.value).toBe('could not refresh server info')
+    expect(serverHint.value).toBe('Check the HTTPS port.')
+    last().send({ type: 'error', message: 'other' })
+    expect(serverHint.value).toBeNull()
+    last().send(state())
+    expect(serverError.value).toBeNull()
+    expect(serverHint.value).toBeNull()
+  })
+
+  it('treats null pools and datasets as empty (an older backend sent null for no quotas)', () => {
+    const { pools, datasets } = usePoolSocket()
+    last().onopen?.()
+    last().send(state({ pools: null, datasets: null }))
+    expect(pools.value).toEqual([])
+    expect(datasets.value).toEqual([])
+  })
 })

@@ -199,9 +199,21 @@ export interface ReplicationTask {
   enabled: boolean
 }
 
+// Whether and how NasWarden reads Docker, fixed at backend startup:
+// - off: nothing configured or mounted (the "Docker not connected" card)
+// - on: access says how (shown in the footer) -- socket (full access),
+//   proxy (DOCKER_PROXY_URL), api (DOCKER_HOST over the network)
+// - error: configured but unusable; error says why (e.g. a missing group)
+export interface DockerStatus {
+  state: 'off' | 'on' | 'error'
+  access?: 'socket' | 'proxy' | 'api'
+  error?: string
+}
+
 interface ErrorMessage {
   type: 'error'
   message: string // why the core TrueNAS data could not be refreshed
+  hint?: string // the likely fix, when the backend recognises the error
 }
 
 interface StateMessage {
@@ -209,13 +221,14 @@ interface StateMessage {
   updated_at?: number // unix seconds the backend took this snapshot
   stale_sources?: string[] // sources whose data is the previous snapshot (refresh failed)
   server: ServerInfo | null
-  pools: Pool[]
-  datasets: Dataset[]
+  pools: Pool[] | null
+  datasets: Dataset[] | null
   containers: Container[] | null
   vms: VM[] | null
   disks?: Disk[] | null
   alerts?: Alert[] | null
   replications?: ReplicationTask[] | null
+  docker?: DockerStatus // absent from backends older than 1.1.0
 }
 
 // Connects to naswarden's /ws endpoint and keeps `pools`/`datasets`
@@ -235,6 +248,8 @@ export function usePoolSocket() {
   const connected = ref(false)
   const updatedAt = ref<number | null>(null)
   const serverError = ref<string | null>(null)
+  const serverHint = ref<string | null>(null)
+  const docker = ref<DockerStatus | null>(null)
   const staleSources = ref<string[]>([])
 
   let socket: WebSocket | null = null
@@ -253,11 +268,16 @@ export function usePoolSocket() {
       const msg = JSON.parse(event.data) as StateMessage | ErrorMessage
       if (msg.type === 'error') {
         serverError.value = msg.message
+        serverHint.value = msg.hint || null
       } else if (msg.type === 'state') {
         serverError.value = null
+        serverHint.value = null
+        docker.value = msg.docker ?? null
         server.value = msg.server
-        pools.value = msg.pools
-        datasets.value = msg.datasets
+        // ?? []: an older backend sent null for an empty list, which blanked
+        // the page (datasets on a TrueNAS without quotas).
+        pools.value = msg.pools ?? []
+        datasets.value = msg.datasets ?? []
         containers.value = msg.containers ?? []
         vms.value = msg.vms ?? []
         disks.value = msg.disks ?? []
@@ -282,5 +302,20 @@ export function usePoolSocket() {
   onMounted(connect)
   onBeforeUnmount(() => socket?.close())
 
-  return { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources, serverError }
+  return {
+    server,
+    pools,
+    datasets,
+    containers,
+    vms,
+    disks,
+    alerts,
+    replications,
+    connected,
+    updatedAt,
+    staleSources,
+    serverError,
+    serverHint,
+    docker,
+  }
 }
