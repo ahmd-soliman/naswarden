@@ -6,6 +6,7 @@ import DatasetCard from './components/DatasetCard.vue'
 import VMCard from './components/VMCard.vue'
 import ContainerCard from './components/ContainerCard.vue'
 import StackCard from './components/StackCard.vue'
+import DockerSetup from './components/DockerSetup.vue'
 import AppIcon from './components/AppIcon.vue'
 import SearchBox from './components/SearchBox.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
@@ -35,7 +36,22 @@ import { useWide } from './composables/useWide'
 import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
 const build = useVersion()
-const { server, pools, datasets, containers, vms, disks, alerts, replications, connected, updatedAt, staleSources, serverError } = usePoolSocket()
+const {
+  server,
+  pools,
+  datasets,
+  containers,
+  vms,
+  disks,
+  alerts,
+  replications,
+  connected,
+  updatedAt,
+  staleSources,
+  serverError,
+  serverHint,
+  docker,
+} = usePoolSocket()
 
 // Data freshness. The backend refreshes every 60s; if it stops getting data
 // (TrueNAS unreachable, refresh failing) it broadcasts nothing, so a browser
@@ -89,6 +105,34 @@ const sortedContainers = computed(() =>
 )
 
 const hasContainers = computed(() => liveContainers.value.length > 0)
+// No Docker access (or it failed at startup): explain how to turn it on in
+// place of the sections, on the All page only and not while searching.
+// How Docker is reached, as a quiet footnote: the person who set it up knows,
+// but it is still visible that a mounted socket is not read-only.
+const DOCKER_NOTES = {
+  socket: {
+    text: 'socket',
+    title:
+      'Read through the mounted Docker socket. That access is not read-only: only NasWarden\'s own code keeps it ' +
+      'to reading. A socket proxy (DOCKER_PROXY_URL) enforces read-only.',
+  },
+  proxy: {
+    text: 'proxy',
+    title: 'Read through a socket proxy (DOCKER_PROXY_URL). With only CONTAINERS=1, it allows listing and inspecting containers.',
+  },
+  api: {
+    text: 'API',
+    title:
+      'Read over the network (DOCKER_HOST). Whether that access is limited depends on what listens there: a socket ' +
+      'proxy limits it, Docker itself does not.',
+  },
+} as const
+const dockerNote = computed(() =>
+  docker.value?.state === 'on' && docker.value.access ? DOCKER_NOTES[docker.value.access] : null,
+)
+const showDockerSetup = computed(
+  () => !!docker.value && docker.value.state !== 'on' && !hasStacks.value && !hasContainers.value,
+)
 const hasVMs = computed(() => vms.value.length > 0)
 const hasDisks = computed(() => disks.value.length > 0)
 
@@ -558,7 +602,10 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
         <div v-if="serverError" class="banner" role="alert">
           <strong>Can't get data from TrueNAS.</strong>
           <span>{{ serverError }}</span>
-          <span class="banner__hint">Check TRUENAS_HOST, TRUENAS_API_KEY and the TLS settings. NasWarden keeps retrying.</span>
+          <span class="banner__hint">
+            {{ serverHint || 'Check the TrueNAS address and port, the API key and the TLS settings.' }} NasWarden keeps
+            retrying.
+          </span>
         </div>
 
         <section v-if="server" v-show="activeSection === 'all' || activeSection === 'server'" data-section="server">
@@ -641,6 +688,11 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
           </div>
         </section>
 
+        <section v-if="showDockerSetup && docker" v-show="activeSection === 'all' && !q" class="section--stack">
+          <h2>Stacks &amp; Containers</h2>
+          <DockerSetup :status="docker" />
+        </section>
+
         <section v-if="hasStacks" v-show="sectionVisible('stacks')" data-section="stacks" class="section--stack">
           <div class="section__head">
             <h2>Stacks</h2>
@@ -715,6 +767,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 
     <footer v-if="build" class="app__footer">
       <span :title="versionDetail(build)">NasWarden {{ versionLabel(build.version) }}</span>
+      <span v-if="dockerNote" class="app__footer-docker" :title="dockerNote.title">&middot; Docker: {{ dockerNote.text }}</span>
     </footer>
 
     <DetailDrawer
@@ -894,6 +947,9 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
   margin-right: 0.4rem;
 }
 
+.app__footer-docker {
+  margin-left: 0.4em;
+}
 .app__footer {
   margin-top: 2rem;
   padding-top: 1rem;

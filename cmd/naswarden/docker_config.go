@@ -48,3 +48,31 @@ func dockerAddress(getenv func(string) string, isSocket func(string) bool) (vari
 	}
 	return variable, address, warning, nil
 }
+
+// dockerStatus is what the UI shows about Docker: on (with how it is
+// reached, for the footer), off (nothing configured or mounted, so the
+// "Docker not connected" card explains how to turn it on), or error
+// (configured but unusable, with the reason, e.g. a missing group).
+// Access is "socket" (full access, nothing filters it), "proxy"
+// (DOCKER_PROXY_URL) or "api" (DOCKER_HOST over the network, which may or
+// may not be a filtering proxy).
+type dockerStatus struct {
+	State  string `json:"state"`
+	Access string `json:"access,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+func newDockerStatus(variable, address string, err error) dockerStatus {
+	switch {
+	case err != nil:
+		return dockerStatus{State: "error", Error: err.Error()}
+	case address == "":
+		return dockerStatus{State: "off"}
+	case strings.HasPrefix(address, "unix://"):
+		return dockerStatus{State: "on", Access: "socket"}
+	case variable == "DOCKER_PROXY_URL":
+		return dockerStatus{State: "on", Access: "proxy"}
+	default:
+		return dockerStatus{State: "on", Access: "api"}
+	}
+}

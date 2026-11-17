@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -59,5 +60,25 @@ func TestDockerAddress(t *testing.T) {
 				t.Errorf("err = %v, want it to contain %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestNewDockerStatus(t *testing.T) {
+	tests := []struct {
+		variable, address string
+		err               error
+		want              dockerStatus
+	}{
+		{"", "", nil, dockerStatus{State: "off"}},
+		{"mounted socket", "unix:///var/run/docker.sock", nil, dockerStatus{State: "on", Access: "socket"}},
+		{"DOCKER_HOST", "unix:///run/docker.sock", nil, dockerStatus{State: "on", Access: "socket"}},
+		{"DOCKER_PROXY_URL", "http://docker-proxy:2375", nil, dockerStatus{State: "on", Access: "proxy"}},
+		{"DOCKER_HOST", "tcp://docker-proxy:2375", nil, dockerStatus{State: "on", Access: "api"}},
+		{"mounted socket", "unix:///var/run/docker.sock", errors.New("no permission"), dockerStatus{State: "error", Error: "no permission"}},
+	}
+	for _, tt := range tests {
+		if got := newDockerStatus(tt.variable, tt.address, tt.err); got != tt.want {
+			t.Errorf("newDockerStatus(%q, %q, %v) = %+v, want %+v", tt.variable, tt.address, tt.err, got, tt.want)
+		}
 	}
 }

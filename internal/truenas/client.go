@@ -16,6 +16,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -81,6 +82,9 @@ func (e *ddpError) String() string {
 // port if non-default (e.g. "truenas.local:8443"). insecureTLS skips
 // certificate verification, needed for TrueNAS's default self-signed UI
 // certificate on a LAN. The returned client redials on its own after a drop.
+// ErrKeyRejected is returned when TrueNAS refuses the API key.
+var ErrKeyRejected = errors.New("TrueNAS rejected the API key")
+
 func Connect(ctx context.Context, host, apiKey string, useTLS, insecureTLS bool) (*Client, error) {
 	c := NewClient(host, apiKey, useTLS, insecureTLS)
 	if _, err := c.current(ctx); err != nil {
@@ -154,7 +158,7 @@ func (c *Client) dial(ctx context.Context) (*websocket.Conn, error) {
 	var accepted bool
 	if json.Unmarshal(res, &accepted) == nil && !accepted {
 		conn.Close()
-		return nil, fmt.Errorf("authenticate: TrueNAS rejected the API key (check TRUENAS_API_KEY)")
+		return nil, fmt.Errorf("authenticate: %w", ErrKeyRejected)
 	}
 	return conn, nil
 }
