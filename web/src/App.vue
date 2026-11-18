@@ -10,6 +10,7 @@ import DockerSetup from './components/DockerSetup.vue'
 import AppIcon from './components/AppIcon.vue'
 import SearchBox from './components/SearchBox.vue'
 import DetailDrawer from './components/DetailDrawer.vue'
+import ErrorBoundary from './components/ErrorBoundary.vue'
 import { useVersion, versionDetail, versionLabel } from './composables/useVersion'
 import { isScrollHint, isScrolledDown } from './composables/rail'
 import ServerDetails from './components/ServerDetails.vue'
@@ -33,6 +34,7 @@ import { formatBytes, formatCapacity, formatRate } from './composables/format'
 import { diskBadge, diskNeedsAttention, diskTypeLabel, totalRates, zfsErrors } from './composables/useDisks'
 import { useViewMode } from './composables/useViewMode'
 import { useWide } from './composables/useWide'
+import { usePanel } from './composables/usePanel'
 import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
 const build = useVersion()
@@ -373,14 +375,26 @@ const drawerBack = computed(() =>
   selectedTarget.value?.kind === 'container' ? selectedTarget.value.fromStack : undefined,
 )
 
+// On a wide screen the detail panel sits beside the content instead of
+// covering it, so a row can be compared against its neighbours.
+const wide = useWide(1200)
+const { toggle, select } = usePanel(selectedTarget, wide)
+const isOpen = (t: SelectionTarget) => selectedTarget.value !== null && targetKey(selectedTarget.value) === targetKey(t)
+function toggleStack(name: string) {
+  toggle({ kind: 'stack', name }, stackActive(name))
+}
+function toggleContainer(name: string) {
+  toggle({ kind: 'container', name }, isOpen({ kind: 'container', name }))
+}
+
 function openStack(name: string) {
-  selectedTarget.value = { kind: 'stack', name }
+  select({ kind: 'stack', name })
 }
 function openContainer(name: string, fromStack?: string) {
-  selectedTarget.value = { kind: 'container', name, fromStack }
+  select({ kind: 'container', name, fromStack })
 }
-function openAlerts() {
-  selectedTarget.value = { kind: 'alerts' }
+function toggleAlerts() {
+  toggle({ kind: 'alerts' }, selectedTarget.value?.kind === 'alerts')
 }
 // The stack card stays highlighted while one of its containers is open in the drawer.
 function stackActive(name: string) {
@@ -391,10 +405,6 @@ function stackActive(name: string) {
 // ---- desktop: card/table lists and the docked detail panel ---------------
 const stackView = useViewMode('stacks', 'cards')
 const containerView = useViewMode('containers', 'table')
-// On a wide screen the detail panel sits beside the content instead of
-// covering it, so a row can be compared against its neighbours.
-const wide = useWide(1200)
-
 const HEALTH_ORDER: Record<string, number> = { red: 0, yellow: 1, green: 2, gray: 3 }
 const pct = (n: number) => `${n.toFixed(1)}%`
 
@@ -474,7 +484,8 @@ const alertPillLabel = computed(() => {
           :class="`alert-pill--${topAlertLevel}`"
           type="button"
           aria-label="View system alerts"
-          @click="openAlerts"
+          :aria-expanded="selectedTarget?.kind === 'alerts'"
+          @click="toggleAlerts"
         >
           <svg class="alert-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <template v-if="topAlertLevel === 'critical' || topAlertLevel === 'warning'">
@@ -610,82 +621,92 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 
         <section v-if="server" v-show="activeSection === 'all' || activeSection === 'server'" data-section="server">
           <h2>Server</h2>
-          <ServerCard
-            :server="server"
-            :active="selectedTarget?.kind === 'server'"
-            @select="selectedTarget = { kind: 'server' }"
-          />
+          <ErrorBoundary label="the server" :reset-key="updatedAt">
+            <ServerCard
+              :server="server"
+              :active="selectedTarget?.kind === 'server'"
+              @select="toggle({ kind: 'server' }, selectedTarget?.kind === 'server')"
+            />
+          </ErrorBoundary>
         </section>
 
         <section v-show="sectionVisible('pools')" data-section="pools">
           <h2>Pools</h2>
-          <div class="grid">
-            <PoolCard
-              v-for="pool in filteredPools"
-              :key="pool.name"
-              :pool="pool"
-              :replications="replications"
-              :active="selectedTarget?.kind === 'pool' && selectedTarget.name === pool.name"
-              @select="selectedTarget = { kind: 'pool', name: pool.name }"
-            />
-            <p v-if="pools.length === 0" class="empty">Waiting for data…</p>
-          </div>
+          <ErrorBoundary label="pools" :reset-key="updatedAt">
+            <div class="grid">
+              <PoolCard
+                v-for="pool in filteredPools"
+                :key="pool.name"
+                :pool="pool"
+                :replications="replications"
+                :active="selectedTarget?.kind === 'pool' && selectedTarget.name === pool.name"
+                @select="toggle({ kind: 'pool', name: pool.name }, selectedTarget?.kind === 'pool' && selectedTarget.name === pool.name)"
+              />
+              <p v-if="pools.length === 0" class="empty">Waiting for data…</p>
+            </div>
+          </ErrorBoundary>
         </section>
 
         <section v-if="hasDisks" v-show="sectionVisible('disks')" data-section="disks" class="section--disk">
           <h2>Disks</h2>
-          <div class="chips">
-            <div class="chip"><span class="chip__label">Hottest</span><b :class="hottestDisk >= 55 ? 't-warn' : 't-ok'">{{ Number.isFinite(hottestDisk) ? Math.round(hottestDisk) + ' °C' : '--' }}</b></div>
-            <div class="chip"><span class="chip__label">ZFS errors</span><b :class="diskErrorTotal > 0 ? 't-warn' : 't-ok'">{{ diskErrorTotal }}</b></div>
-            <div v-if="diskThroughput.known" class="chip">
-              <span class="chip__label">Throughput now</span>
-              <b>{{ formatRate(diskThroughput.read) }} <span class="chip__unit">read</span> · {{ formatRate(diskThroughput.write) }} <span class="chip__unit">write</span></b>
+          <ErrorBoundary label="disks" :reset-key="updatedAt">
+            <div class="chips">
+              <div class="chip"><span class="chip__label">Hottest</span><b :class="hottestDisk >= 55 ? 't-warn' : 't-ok'">{{ Number.isFinite(hottestDisk) ? Math.round(hottestDisk) + ' °C' : '--' }}</b></div>
+              <div class="chip"><span class="chip__label">ZFS errors</span><b :class="diskErrorTotal > 0 ? 't-warn' : 't-ok'">{{ diskErrorTotal }}</b></div>
+              <div v-if="diskThroughput.known" class="chip">
+                <span class="chip__label">Throughput now</span>
+                <b>{{ formatRate(diskThroughput.read) }} <span class="chip__unit">read</span> · {{ formatRate(diskThroughput.write) }} <span class="chip__unit">write</span></b>
+              </div>
+              <div class="chip"><span class="chip__label">Total</span><b>{{ formatCapacity(diskCapacity) }}</b></div>
             </div>
-            <div class="chip"><span class="chip__label">Total</span><b>{{ formatCapacity(diskCapacity) }}</b></div>
-          </div>
-          <ListTable
-            caption="Disks"
-            :rows="filteredDisks"
-            :columns="diskColumns"
-            :row-key="(d: Disk) => d.name"
-            :is-active="diskActive"
-            @select="(d: Disk) => (selectedTarget = { kind: 'disk', name: d.name })"
-          >
-            <template #cell-size="{ row }">{{ formatCapacity(row.size) }}</template>
-            <template #cell-temp="{ row }"><TempRange :disk="row" /></template>
-            <template #cell-read="{ row }">{{ row.read_bytes_per_sec !== undefined ? formatRate(row.read_bytes_per_sec) : '—' }}</template>
-            <template #cell-write="{ row }">{{ row.write_bytes_per_sec !== undefined ? formatRate(row.write_bytes_per_sec) : '—' }}</template>
-            <template #cell-status="{ row }">
-              <span class="badge" :class="diskBadge(row).cls">{{ diskBadge(row).label }}</span>
-            </template>
-          </ListTable>
+            <ListTable
+              caption="Disks"
+              :rows="filteredDisks"
+              :columns="diskColumns"
+              :row-key="(d: Disk) => d.name"
+              :is-active="diskActive"
+              @select="(d: Disk) => toggle({ kind: 'disk', name: d.name }, diskActive(d))"
+            >
+              <template #cell-size="{ row }">{{ formatCapacity(row.size) }}</template>
+              <template #cell-temp="{ row }"><TempRange :disk="row" /></template>
+              <template #cell-read="{ row }">{{ row.read_bytes_per_sec !== undefined ? formatRate(row.read_bytes_per_sec) : '—' }}</template>
+              <template #cell-write="{ row }">{{ row.write_bytes_per_sec !== undefined ? formatRate(row.write_bytes_per_sec) : '—' }}</template>
+              <template #cell-status="{ row }">
+                <span class="badge" :class="diskBadge(row).cls">{{ diskBadge(row).label }}</span>
+              </template>
+            </ListTable>
+          </ErrorBoundary>
         </section>
 
         <section v-show="sectionVisible('datasets')" data-section="datasets">
           <h2>Dataset quotas</h2>
-          <div class="grid grid--datasets">
-            <DatasetCard
-              v-for="dataset in filteredDatasets"
-              :key="dataset.name"
-              :dataset="dataset"
-              :active="selectedTarget?.kind === 'dataset' && selectedTarget.name === dataset.name"
-              @select="selectedTarget = { kind: 'dataset', name: dataset.name }"
-            />
-            <p v-if="datasets.length === 0" class="empty">No datasets with a quota configured.</p>
-          </div>
+          <ErrorBoundary label="dataset quotas" :reset-key="updatedAt">
+            <div class="grid grid--datasets">
+              <DatasetCard
+                v-for="dataset in filteredDatasets"
+                :key="dataset.name"
+                :dataset="dataset"
+                :active="selectedTarget?.kind === 'dataset' && selectedTarget.name === dataset.name"
+                @select="toggle({ kind: 'dataset', name: dataset.name }, selectedTarget?.kind === 'dataset' && selectedTarget.name === dataset.name)"
+              />
+              <p v-if="datasets.length === 0" class="empty">No datasets with a quota configured.</p>
+            </div>
+          </ErrorBoundary>
         </section>
 
         <section v-if="hasVMs" v-show="sectionVisible('vms')" data-section="vms">
           <h2>Virtual Machines & Containers</h2>
-          <div class="grid grid--vms">
-            <VMCard
-              v-for="vm in filteredVMs"
-              :key="vm.name"
-              :vm="vm"
-              :active="selectedTarget?.kind === 'vm' && selectedTarget.name === vm.name"
-              @select="selectedTarget = { kind: 'vm', name: vm.name }"
-            />
-          </div>
+          <ErrorBoundary label="virtual machines" :reset-key="updatedAt">
+            <div class="grid grid--vms">
+              <VMCard
+                v-for="vm in filteredVMs"
+                :key="vm.name"
+                :vm="vm"
+                :active="selectedTarget?.kind === 'vm' && selectedTarget.name === vm.name"
+                @select="toggle({ kind: 'vm', name: vm.name }, selectedTarget?.kind === 'vm' && selectedTarget.name === vm.name)"
+              />
+            </div>
+          </ErrorBoundary>
         </section>
 
         <section v-if="showDockerSetup && docker" v-show="activeSection === 'all' && !q" class="section--stack">
@@ -698,36 +719,38 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
             <h2>Stacks</h2>
             <ViewToggle v-model="stackView" label="Stacks view" />
           </div>
-          <div v-if="stackView === 'cards'" class="grid">
-            <StackCard
-              v-for="stack in filteredStacks"
-              :key="stack.name"
-              :stack="stack"
-              :active="stackActive(stack.name)"
-              @select="openStack(stack.name)"
-            />
-          </div>
-          <ListTable
-            v-else
-            caption="Stacks"
-            :rows="filteredStacks"
-            :columns="stackColumns"
-            :row-key="(s: Stack) => s.name"
-            :is-active="(s: Stack) => stackActive(s.name)"
-            :default-sort="{ key: 'status', dir: 'asc' }"
-            @select="(s: Stack) => openStack(s.name)"
-          >
-            <template #cell-name="{ row }">
-              <AppIcon :candidates="iconCandidates(row)" :size="18" />
-              {{ row.name }}
-            </template>
-            <template #cell-status="{ row }">
-              <span class="badge" :class="`badge--${row.health}`">{{ stackBadgeLabel(row) }}</span>
-            </template>
-            <template #cell-running="{ row }">{{ row.running }}/{{ row.total }}</template>
-            <template #cell-cpu="{ row }">{{ row.running ? pct(row.cpu) : '—' }}</template>
-            <template #cell-mem="{ row }">{{ row.running ? formatBytes(row.mem) : '—' }}</template>
-          </ListTable>
+          <ErrorBoundary label="stacks" :reset-key="updatedAt">
+            <div v-if="stackView === 'cards'" class="grid">
+              <StackCard
+                v-for="stack in filteredStacks"
+                :key="stack.name"
+                :stack="stack"
+                :active="stackActive(stack.name)"
+                @select="toggleStack(stack.name)"
+              />
+            </div>
+            <ListTable
+              v-else
+              caption="Stacks"
+              :rows="filteredStacks"
+              :columns="stackColumns"
+              :row-key="(s: Stack) => s.name"
+              :is-active="(s: Stack) => stackActive(s.name)"
+              :default-sort="{ key: 'status', dir: 'asc' }"
+              @select="(s: Stack) => toggleStack(s.name)"
+            >
+              <template #cell-name="{ row }">
+                <AppIcon :candidates="iconCandidates(row)" :size="18" />
+                {{ row.name }}
+              </template>
+              <template #cell-status="{ row }">
+                <span class="badge" :class="`badge--${row.health}`">{{ stackBadgeLabel(row) }}</span>
+              </template>
+              <template #cell-running="{ row }">{{ row.running }}/{{ row.total }}</template>
+              <template #cell-cpu="{ row }">{{ row.running ? pct(row.cpu) : '—' }}</template>
+              <template #cell-mem="{ row }">{{ row.running ? formatBytes(row.mem) : '—' }}</template>
+            </ListTable>
+          </ErrorBoundary>
         </section>
 
         <!-- Stacks is the default landing view, so the flat list lives on its own tab -->
@@ -736,31 +759,33 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
             <h2>Containers</h2>
             <ViewToggle v-model="containerView" label="Containers view" />
           </div>
-          <div v-if="containerView === 'cards'" class="grid grid--datasets">
-            <ContainerCard
-              v-for="container in filteredContainers"
-              :key="container.name"
-              :container="container"
-              :active="containerActive(container)"
-              @select="openContainer(container.name)"
-            />
-          </div>
-          <ListTable
-            v-else
-            caption="Containers"
-            :rows="filteredContainers"
-            :columns="containerColumns"
-            :row-key="(c: Container) => c.name"
-            :is-active="containerActive"
-            :default-sort="{ key: 'name', dir: 'asc' }"
-            @select="(c: Container) => openContainer(c.name)"
-          >
-            <template #cell-state="{ row }">
-              <span class="badge" :class="memberBadge(row).cls">{{ memberBadge(row).label }}</span>
-            </template>
-            <template #cell-cpu="{ row }">{{ row.state === 'running' ? pct(row.cpu_percent) : '—' }}</template>
-            <template #cell-mem="{ row }">{{ row.state === 'running' ? formatBytes(row.mem_used) : '—' }}</template>
-          </ListTable>
+          <ErrorBoundary label="containers" :reset-key="updatedAt">
+            <div v-if="containerView === 'cards'" class="grid grid--datasets">
+              <ContainerCard
+                v-for="container in filteredContainers"
+                :key="container.name"
+                :container="container"
+                :active="containerActive(container)"
+                @select="toggleContainer(container.name)"
+              />
+            </div>
+            <ListTable
+              v-else
+              caption="Containers"
+              :rows="filteredContainers"
+              :columns="containerColumns"
+              :row-key="(c: Container) => c.name"
+              :is-active="containerActive"
+              :default-sort="{ key: 'name', dir: 'asc' }"
+              @select="(c: Container) => toggleContainer(c.name)"
+            >
+              <template #cell-state="{ row }">
+                <span class="badge" :class="memberBadge(row).cls">{{ memberBadge(row).label }}</span>
+              </template>
+              <template #cell-cpu="{ row }">{{ row.state === 'running' ? pct(row.cpu_percent) : '—' }}</template>
+              <template #cell-mem="{ row }">{{ row.state === 'running' ? formatBytes(row.mem_used) : '—' }}</template>
+            </ListTable>
+          </ErrorBoundary>
         </section>
       </main>
     </div>
@@ -775,7 +800,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
       :docked="wide"
       :title="drawerTitle"
       :back="drawerBack"
-      @close="selectedTarget = null"
+      @close="select(null)"
       @back="drawerBack && openStack(drawerBack)"
     >
       <template v-if="selected?.kind === 'stack'" #title-icon>
@@ -787,25 +812,27 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
       <template v-else-if="selected?.kind === 'container'" #title-icon>
         <AppIcon :candidates="containerIconCandidates(selected.data)" :size="22" />
       </template>
-      <ServerDetails v-if="selected?.kind === 'server'" :server="selected.data" />
-      <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" :replications="replications" />
-      <DatasetDetails v-else-if="selected?.kind === 'dataset'" :dataset="selected.data" />
-      <VMDetails v-else-if="selected?.kind === 'vm'" :vm="selected.data" />
-      <DiskDetails v-else-if="selected?.kind === 'disk'" :disk="selected.data" />
-      <StackDetails
-        v-else-if="selected?.kind === 'stack'"
-        :stack="selected.data"
-        @open-container="(name: string) => openContainer(name, selected?.kind === 'stack' ? selected.data.name : undefined)"
-      />
-      <ContainerDetails
-        v-else-if="selected?.kind === 'container'"
-        :container="selected.data"
-        @open-stack="openStack"
-      />
-      <AlertsDetails
-        v-else-if="selected?.kind === 'alerts'"
-        :alerts="selected.data"
-      />
+      <ErrorBoundary label="the details" :reset-key="`${updatedAt}:${drawerTitle}`">
+        <ServerDetails v-if="selected?.kind === 'server'" :server="selected.data" />
+        <PoolDetails v-else-if="selected?.kind === 'pool'" :pool="selected.data" :replications="replications" />
+        <DatasetDetails v-else-if="selected?.kind === 'dataset'" :dataset="selected.data" />
+        <VMDetails v-else-if="selected?.kind === 'vm'" :vm="selected.data" />
+        <DiskDetails v-else-if="selected?.kind === 'disk'" :disk="selected.data" />
+        <StackDetails
+          v-else-if="selected?.kind === 'stack'"
+          :stack="selected.data"
+          @open-container="(name: string) => openContainer(name, selected?.kind === 'stack' ? selected.data.name : undefined)"
+        />
+        <ContainerDetails
+          v-else-if="selected?.kind === 'container'"
+          :container="selected.data"
+          @open-stack="openStack"
+        />
+        <AlertsDetails
+          v-else-if="selected?.kind === 'alerts'"
+          :alerts="selected.data"
+        />
+      </ErrorBoundary>
     </DetailDrawer>
   </div>
 </template>
@@ -816,6 +843,13 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
      1920 screen and made the page read like a phone app. */
   padding: 1.25rem clamp(1rem, 2vw, 2.5rem);
   transition: padding-right 0.25s ease;
+}
+/* Where view transitions exist, select() animates the cards instead; a
+   padding transition on top would reflow the grids on every frame. */
+@supports (view-transition-name: none) {
+  .app {
+    transition: none;
+  }
 }
 
 /* The detail panel is docked beside the content on wide screens */

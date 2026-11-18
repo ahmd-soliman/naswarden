@@ -117,8 +117,13 @@ const ICON_ALIASES: Record<string, string> = {
 // "ghcr.io/jellyfin/jellyfin:12.1" -> "jellyfin"
 const imageSlug = (image: string) => image.split('@')[0].split(':')[0].split('/').pop() ?? ''
 
+// TrueNAS names a catalog app's compose project "ix-<app>": "ix-immich" has
+// the icon of "immich".
+const catalogApp = (name: string) => (name.startsWith('ix-') ? name.slice(3) : '')
+
 export function iconCandidates(s: Stack): string[] {
-  const list = [s.icon, ICON_ALIASES[s.name], s.name, imageSlug(s.members[0]?.image ?? '')]
+  const app = catalogApp(s.name)
+  const list = [s.icon, ICON_ALIASES[s.name], s.name, ICON_ALIASES[app], app, imageSlug(s.members[0]?.image ?? '')]
   return [...new Set(list.filter((x): x is string => !!x))]
 }
 

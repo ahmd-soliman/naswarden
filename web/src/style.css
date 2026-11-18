@@ -392,3 +392,40 @@ h1 {
   box-shadow: none;
   z-index: 50;
 }
+
+/* Docked panel opening or closing (select() in App.vue): every card, table
+   and heading that moves glides from its old place to its new one, so the
+   grids reflow without cards jumping between rows. */
+.card--clickable,
+.lt,
+.app__topbar,
+.app__content h2,
+.section__head,
+.chips {
+  view-transition-name: match-element;
+}
+.drawer.drawer--docked {
+  view-transition-name: detail-panel;
+}
+.docking .drawer {
+  transition: none;
+}
+/* The panel's group moves from its old box to its new one (on or off
+   screen): it slides at full opacity, above the cards. */
+::view-transition-group(detail-panel) {
+  z-index: 1;
+}
+::view-transition-old(detail-panel),
+::view-transition-new(detail-panel) {
+  animation: none;
+}
+::view-transition-group(*) {
+  animation-duration: 0.25s;
+  animation-timing-function: ease;
+}
+/* The old and new pictures of a moving card cross-fade quickly while the
+   card itself moves for the full duration: less double text mid-move. */
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 0.12s;
+}

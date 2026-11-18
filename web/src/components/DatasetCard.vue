@@ -35,6 +35,7 @@ function formatBytes(bytes: number): string {
     :class="{ 'card--open': active }"
     tabindex="0"
     role="button"
+    :aria-expanded="!!active"
     @click="$emit('select')"
     @keydown.enter.prevent="$emit('select')"
     @keydown.space.prevent="$emit('select')"

@@ -13,7 +13,7 @@ NasWarden monitors dataset quota utilization in real time, and expands into a un
 
 ## Screenshots
 
-Demo data, not a real system.
+Demo data, not a real system: a made-up TrueNAS with catalog apps ([`web/scripts/demo-state.mjs`](web/scripts/demo-state.mjs)). To take them again, run `npm run screenshots` in `web/` (once before: `npx playwright install --only-shell chromium`).
 
 ![Overview: server, pools, disks and dataset quotas](docs/screenshots/screenshot-overview.png)
 
