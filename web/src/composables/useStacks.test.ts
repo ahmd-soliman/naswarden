@@ -77,4 +77,11 @@ describe('icon candidates', () => {
     expect(iconCandidates(stack)).toEqual(['custom', 'nextcloud', 'nextcloud-aio', 'all-in-one'])
     expect(containerIconCandidates(c({ name: 'jellyfin', image: 'jellyfin/jellyfin:10' }))).toEqual(['jellyfin'])
   })
+
+  it('tries the app name of a TrueNAS catalog stack (ix-<app>)', () => {
+    const stack = buildStacks([c({ stack: 'ix-immich', image: 'ghcr.io/immich-app/immich-machine-learning:v2' })])[0]
+    expect(iconCandidates(stack)).toEqual(['ix-immich', 'immich', 'immich-machine-learning'])
+    const aliased = buildStacks([c({ stack: 'ix-drawio', image: 'jgraph/drawio:29' })])[0]
+    expect(iconCandidates(aliased)).toEqual(['ix-drawio', 'draw-io', 'drawio'])
+  })
 })

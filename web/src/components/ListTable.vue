@@ -78,7 +78,7 @@ const ariaSort = (key: string) =>
           @click="emit('select', row)"
         >
           <td v-for="(col, i) in columns" :key="col.key" :class="{ 'lt__num': col.align === 'right' }" @mouseenter="showFullText">
-            <button v-if="i === 0" type="button" class="lt__open" @click.stop="emit('select', row)">
+            <button v-if="i === 0" type="button" class="lt__open" :aria-expanded="!!isActive?.(row)" @click.stop="emit('select', row)">
               <slot :name="`cell-${col.key}`" :row="row">{{ col.value(row) }}</slot>
             </button>
             <slot v-else :name="`cell-${col.key}`" :row="row">{{ col.value(row) }}</slot>
