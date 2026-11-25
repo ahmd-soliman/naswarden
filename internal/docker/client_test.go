@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestIsStopped(t *testing.T) {
@@ -335,6 +336,65 @@ func TestCPUPercentGuardsAgainstBadDeltas(t *testing.T) {
 	s.PreCPUStats.CPUUsage.TotalUsage, s.PreCPUStats.SystemCPUUsage = 200, 200 // counters went backwards
 	if got := cpuPercent(s); got != 0 {
 		t.Errorf("negative delta = %v, want 0", got)
+	}
+}
+
+func TestCPUForUsesDockersSamplesWhenPresent(t *testing.T) {
+	c := &Client{}
+	var s statsResponse
+	s.CPUStats.CPUUsage.TotalUsage, s.CPUStats.SystemCPUUsage, s.CPUStats.OnlineCPUs = 300, 2000, 2
+	s.PreCPUStats.CPUUsage.TotalUsage, s.PreCPUStats.SystemCPUUsage = 200, 1000
+	// cpu delta 100 over system delta 1000, 2 CPUs => 20%.
+	if got := c.cpuFor("a", s, time.Now()); got < 19.99 || got > 20.01 {
+		t.Errorf("cpu = %v, want 20", got)
+	}
+	if len(c.cpuPrev) != 0 {
+		t.Errorf("remembered a reading it did not need: %v", c.cpuPrev)
+	}
+}
+
+// Podman leaves precpu_stats empty: the use must come from the previous
+// refresh's reading.
+func TestCPUForUsesThePreviousReadingWhenPrecpuIsEmpty(t *testing.T) {
+	c := &Client{}
+	t0 := time.Unix(1000, 0)
+	reading := func(total int64) statsResponse {
+		var s statsResponse
+		s.CPUStats.CPUUsage.TotalUsage = total
+		return s
+	}
+	// A container that has used 600 s of CPU over its life reads 0 the first
+	// time: there is nothing to compare with yet.
+	if got := c.cpuFor("a", reading(600e9), t0); got != 0 {
+		t.Errorf("first reading = %v, want 0", got)
+	}
+	// 60 s later it has used 60 more seconds: one full core.
+	if got := c.cpuFor("a", reading(660e9), t0.Add(60*time.Second)); got < 99.99 || got > 100.01 {
+		t.Errorf("full core = %v, want 100", got)
+	}
+	// Another 60 s, 15 s of CPU: a quarter of a core.
+	if got := c.cpuFor("a", reading(675e9), t0.Add(120*time.Second)); got < 24.99 || got > 25.01 {
+		t.Errorf("quarter core = %v, want 25", got)
+	}
+	// Two cores busy can read more than 100, like docker stats.
+	if got := c.cpuFor("a", reading(795e9), t0.Add(180*time.Second)); got < 199.99 || got > 200.01 {
+		t.Errorf("two cores = %v, want 200", got)
+	}
+	// Containers are tracked separately.
+	if got := c.cpuFor("b", reading(5e9), t0.Add(180*time.Second)); got != 0 {
+		t.Errorf("other container's first reading = %v, want 0", got)
+	}
+	// A restarted container's counter goes back to a small number.
+	if got := c.cpuFor("a", reading(1e9), t0.Add(240*time.Second)); got != 0 {
+		t.Errorf("after a restart = %v, want 0", got)
+	}
+}
+
+func TestForgetCPUDropsContainersThatAreGone(t *testing.T) {
+	c := &Client{cpuPrev: map[string]cpuSample{"keep": {}, "gone": {}}}
+	c.forgetCPU([]containerSummary{{ID: "keep"}})
+	if _, ok := c.cpuPrev["gone"]; ok || len(c.cpuPrev) != 1 {
+		t.Errorf("cpuPrev = %v, want only keep", c.cpuPrev)
 	}
 }
 

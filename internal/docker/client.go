@@ -33,6 +33,17 @@ import (
 type Client struct {
 	baseURL string
 	http    *http.Client
+
+	// The previous CPU reading of each container, for engines that do not
+	// fill precpu_stats (see cpuFor).
+	cpuMu   sync.Mutex
+	cpuPrev map[string]cpuSample
+}
+
+// cpuSample is one reading of a container's cumulative CPU time.
+type cpuSample struct {
+	total int64 // nanoseconds of CPU time used since the container started
+	at    time.Time
 }
 
 // DefaultSocket is where the Docker socket is mounted by convention, and
@@ -311,7 +322,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 				if err := c.get(ctx, fmt.Sprintf("/containers/%s/stats?stream=false", id), &stats); err != nil {
 					failures.Add(1)
 				} else {
-					containers[i].CPUPercent = cpuPercent(stats)
+					containers[i].CPUPercent = c.cpuFor(id, stats, time.Now())
 					containers[i].MemUsed = stats.MemoryStats.Usage
 					containers[i].MemLimit = stats.MemoryStats.Limit
 				}
@@ -330,6 +341,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]Container, error) {
 	}
 
 	wg.Wait()
+	c.forgetCPU(kept)
 	if n := failures.Load(); n > 0 {
 		slog.Warn("failed to fetch stats for some containers", "count", n, "total", len(kept))
 	}
@@ -390,6 +402,57 @@ func cpuPercent(s statsResponse) float64 {
 		return 0
 	}
 	return (cpuDelta / systemDelta) * float64(s.CPUStats.OnlineCPUs) * 100.0
+}
+
+// cpuFor returns a container's CPU use in percent of one core, like
+// `docker stats`.
+//
+// Docker answers a one-shot stats request with two samples (cpu_stats and
+// precpu_stats), so the difference between them is the recent use. Podman's
+// Docker-compatible API leaves precpu_stats empty, and Docker's formula then
+// averages over the container's whole life, which reads about 0 for a
+// container that has just started spinning. For those the previous refresh's
+// reading is used instead, so the first reading of a container is 0 and the
+// next ones are right. The elapsed wall-clock time is the denominator, which
+// does not depend on system_cpu_usage (also missing there).
+func (c *Client) cpuFor(id string, s statsResponse, now time.Time) float64 {
+	if s.PreCPUStats.CPUUsage.TotalUsage > 0 {
+		return cpuPercent(s)
+	}
+	cur := cpuSample{total: s.CPUStats.CPUUsage.TotalUsage, at: now}
+	c.cpuMu.Lock()
+	prev, ok := c.cpuPrev[id]
+	if c.cpuPrev == nil {
+		c.cpuPrev = map[string]cpuSample{}
+	}
+	c.cpuPrev[id] = cur
+	c.cpuMu.Unlock()
+
+	elapsed := now.Sub(prev.at)
+	delta := cur.total - prev.total
+	if !ok || elapsed <= 0 || delta <= 0 { // first reading, or the container restarted
+		return 0
+	}
+	return float64(delta) / float64(elapsed.Nanoseconds()) * 100
+}
+
+// forgetCPU drops the readings of containers that are no longer listed, so
+// the map does not grow with every container that was ever created.
+func (c *Client) forgetCPU(listed []containerSummary) {
+	c.cpuMu.Lock()
+	defer c.cpuMu.Unlock()
+	if len(c.cpuPrev) == 0 {
+		return
+	}
+	keep := make(map[string]struct{}, len(listed))
+	for _, s := range listed {
+		keep[s.ID] = struct{}{}
+	}
+	for id := range c.cpuPrev {
+		if _, ok := keep[id]; !ok {
+			delete(c.cpuPrev, id)
+		}
+	}
 }
 
 func trimLeadingSlash(s string) string {
