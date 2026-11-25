@@ -126,7 +126,7 @@ func main() {
 	// idle timeouts still shut out slow-loris clients.
 	srv := &http.Server{
 		Addr:              ":" + port,
-		Handler:           mux,
+		Handler:           newHostGuard(os.Getenv("NASWARDEN_ALLOWED_HOSTS"), mux),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
