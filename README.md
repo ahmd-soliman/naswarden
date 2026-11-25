@@ -125,6 +125,7 @@ NasWarden only sends `GET /1.0/instances?recursion=2`, but with Incus 6.0 a trus
 ## Security notes
 
 - **Use a read-only API key.** A TrueNAS API key has the rights of the user it belongs to. NasWarden only reads, but a key from an administrator account could change anything if it leaked. Create a dedicated user (Credentials → Users → Add) with the **Readonly Admin** role, then add the key for that user (on that user's Access → View API Keys). That role covers every call NasWarden makes.
+- **DNS rebinding (opt-in protection).** A web page on the internet can try to reach a dashboard on your LAN by pointing its own domain at your NAS's address. Set `NASWARDEN_ALLOWED_HOSTS` to the host names you use (for example `naswarden.home.example`) and NasWarden refuses, with `421 Misdirected Request`, any request for another name, except IP addresses, `localhost` and single-word names like `nas`. It is off by default so upgrading never locks you out; while it is unset, NasWarden logs each unknown host name once. Without a login this is the only protection against it.
 - **The dashboard has no login.** Anyone who can reach the port sees your pools, disks and containers. Keep it on your LAN, or put it behind an authenticating reverse proxy or access gateway. Do not expose it to the internet as is.
 - **Docker access is limited, not zero.** The socket proxy only allows listing and inspecting containers. An inspect response includes each container's environment variables; NasWarden does not read or show them, but the proxy would return them to a compromised NasWarden. With the socket mounted directly (no proxy), nothing limits that access at all. If you do not want Docker in the dashboard, set neither variable and do not mount the socket into NasWarden.
 - **Incus certificates are not read-only** (Incus 6.0). See [Setup](#3-incus-optional).
@@ -213,6 +214,7 @@ All configuration is provided via environment variables:
 | `INCUS_CLIENT_KEY` | No | — | Incus client private key (PEM string, base64, or file path) |
 | `INCUS_INSECURE_TLS` | No | `true` | Set `false` to enforce Incus server TLS certificate validation |
 | `PORT` | No | `8080` | HTTP port for the web UI and `/metrics` endpoint |
+| `NASWARDEN_ALLOWED_HOSTS` | No | — | Turns on refusing requests for unknown host names (DNS rebinding protection). Comma-separated host names NasWarden answers to, besides IP addresses, `localhost` and single-word names like `nas`, e.g. `naswarden.home.example` for a reverse proxy. Other hosts get `421 Misdirected Request`. Unset: nothing is refused, and unknown hosts are logged once as a warning. `*` silences the warning. See [Security notes](#security-notes) |
 
 ---
 
