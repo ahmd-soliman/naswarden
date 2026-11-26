@@ -288,6 +288,10 @@ export TRUENAS_TLS=true
 export TRUENAS_INSECURE_TLS=true
 go run ./cmd/naswarden
 
+# Or build, run against your TrueNAS and check it end to end (keys come from the
+# environment only; use a Readonly Admin user's key). KEEP=1 leaves it running.
+scripts/local-test.sh
+
 # Build frontend
 cd web
 npm install
