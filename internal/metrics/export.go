@@ -40,6 +40,16 @@ var (
 		Help: "Total raw storage size in bytes for a ZFS storage pool.",
 	}, []string{"pool"})
 
+	poolUsableBytes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_pool_usable_bytes",
+		Help: "Usable capacity in bytes of a ZFS pool (used plus available, from its root dataset): without RAIDZ parity or the slop reservation.",
+	}, []string{"pool"})
+
+	poolAvailableBytes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_pool_available_bytes",
+		Help: "Bytes still available for files in a ZFS pool (the root dataset's available space).",
+	}, []string{"pool"})
+
 	poolHealthy = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "naswarden_pool_healthy",
 		Help: "1 if the ZFS pool is healthy and ONLINE, 0 otherwise.",
@@ -125,6 +135,8 @@ var (
 	datasetQuotaSeries    = newTracked(datasetQuotaBytes)
 	poolAllocSeries       = newTracked(poolAllocatedBytes)
 	poolSizeSeries        = newTracked(poolSizeBytes)
+	poolUsableSeries      = newTracked(poolUsableBytes)
+	poolAvailableSeries   = newTracked(poolAvailableBytes)
 	poolHealthySeries     = newTracked(poolHealthy)
 	instanceSeries        = newTracked(instanceUp)
 	containerSeries       = newTracked(containerUp)
@@ -165,6 +177,23 @@ func UpdateDatasets(datasets []truenas.Dataset) {
 }
 
 // UpdatePools refreshes the ZFS pool capacity, health, and disk temperature gauges.
+// UpdatePoolUsable exports the usable capacity of the pools that have it.
+// A pool whose root dataset could not be read has no series (never 0), and a
+// series disappears when its pool does.
+func UpdatePoolUsable(pools []truenas.Pool) {
+	setUsable, doneUsable := poolUsableSeries.begin()
+	setAvail, doneAvail := poolAvailableSeries.begin()
+	for _, p := range pools {
+		if p.UsableSize <= 0 {
+			continue
+		}
+		setUsable(float64(p.UsableSize), p.Name)
+		setAvail(float64(p.UsableAvailable), p.Name)
+	}
+	doneUsable()
+	doneAvail()
+}
+
 func UpdatePools(pools []truenas.Pool) {
 	setAlloc, doneAlloc := poolAllocSeries.begin()
 	setSize, doneSize := poolSizeSeries.begin()

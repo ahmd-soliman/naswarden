@@ -227,3 +227,57 @@ func TestListDatasetsWithoutQuotasIsEmptyNotNull(t *testing.T) {
 		t.Errorf("datasets = %s, want []", out)
 	}
 }
+
+// The pool card shows what files can use, not the zpool's raw size: the root
+// dataset's used + available, which is what `zfs list -o used,avail <pool>`
+// shows. Taken from the same pool.dataset.query answer as the quotas.
+func TestListDatasetsWithUsageReadsRootDatasetsOnly(t *testing.T) {
+	c := methodServer(t, map[string]string{"pool.dataset.query": `[
+	 {"name":"tank","used":{"parsed":1900},"available":{"parsed":30100},"quota":{"parsed":null},"refquota":{"parsed":null}},
+	 {"name":"tank/media","used":{"parsed":700},"available":{"parsed":30100},"quota":{"parsed":1000},"refquota":{"parsed":null}},
+	 {"name":"boot-pool","used":{"parsed":5},"available":{"parsed":95}},
+	 {"name":"nospace","used":{"parsed":5}},
+	 {"name":"","used":{"parsed":1},"available":{"parsed":1}}
+	]`})
+	datasets, usage, err := ListDatasetsWithUsage(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(datasets) != 1 || datasets[0].Name != "tank/media" {
+		t.Errorf("datasets = %+v, want only the quota'd child (the quota list is unchanged)", datasets)
+	}
+	if len(usage) != 2 || usage["tank"] != (Usage{Used: 1900, Available: 30100}) || usage["boot-pool"] != (Usage{Used: 5, Available: 95}) {
+		t.Errorf("usage = %+v, want tank and boot-pool only (children, no-available and unnamed are skipped)", usage)
+	}
+}
+
+func TestApplyUsableAndFallbackToRaw(t *testing.T) {
+	pools := []Pool{
+		{Name: "tank", Size: 43600, Allocated: 2900}, // 4x12 TB RAIDZ1: raw size counts parity
+		{Name: "gone", Size: 100, Allocated: 10},     // root dataset not returned
+		{Name: "odd", Size: 100, Allocated: 10},      // reports nothing at all
+		{Name: "neg", Size: 100, Allocated: 10},      // nonsense values
+	}
+	ApplyUsable(pools, map[string]Usage{
+		"tank": {Used: 1900, Available: 30100},
+		"odd":  {},
+		"neg":  {Used: -1, Available: 5},
+	})
+	tank := pools[0]
+	if tank.UsableSize != 32000 || tank.UsableUsed != 1900 || tank.UsableAvailable != 30100 {
+		t.Errorf("tank = %+v, want usable 1900 / 32000 with 30100 free", tank)
+	}
+	if tank.Size != 43600 || tank.Allocated != 2900 {
+		t.Errorf("raw figures changed: %+v (they stay for the detail drawer and old metrics)", tank)
+	}
+	for _, p := range pools[1:] {
+		if p.UsableSize != 0 || p.UsableUsed != 0 || p.UsableAvailable != 0 {
+			t.Errorf("%s = %+v, want no usable figures so the UI falls back to raw", p.Name, p)
+		}
+	}
+	// Absent, not 0, on the wire.
+	out, _ := json.Marshal(pools[1])
+	if strings.Contains(string(out), "usable") {
+		t.Errorf("json = %s, want no usable_* keys without a root dataset", out)
+	}
+}

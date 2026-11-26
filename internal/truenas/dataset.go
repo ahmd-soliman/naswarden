@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // property is the wrapper shape TrueNAS's middleware uses for most
@@ -27,6 +28,7 @@ type stringProperty struct {
 type rawDataset struct {
 	Name            string         `json:"name"`
 	Used            property       `json:"used"`
+	Available       property       `json:"available"`
 	UsedByDataset   property       `json:"usedbydataset"`
 	UsedBySnapshots property       `json:"usedbysnapshots"`
 	Quota           property       `json:"quota"`
@@ -57,17 +59,69 @@ type Dataset struct {
 	UsedBySnapshots int64  `json:"used_by_snapshots"` // bytes
 }
 
+// Usage is a pool's usable space: what its root dataset reports, which is
+// what `zfs list -o used,avail <pool>` shows. Unlike the zpool's raw size it
+// leaves out RAIDZ parity and ZFS's slop reservation.
+type Usage struct {
+	Used      int64
+	Available int64
+}
+
 // ListDatasets calls pool.dataset.query and returns only datasets with a
 // quota or refquota actually configured.
 func ListDatasets(ctx context.Context, c *Client) ([]Dataset, error) {
+	datasets, _, err := ListDatasetsWithUsage(ctx, c)
+	return datasets, err
+}
+
+// ListDatasetsWithUsage is ListDatasets plus the usable space of each pool,
+// read from the same pool.dataset.query answer (a pool's root dataset has the
+// pool's name), so it costs no extra call.
+func ListDatasetsWithUsage(ctx context.Context, c *Client) ([]Dataset, map[string]Usage, error) {
 	raw, err := c.Call(ctx, "pool.dataset.query", []any{})
 	if err != nil {
-		return nil, fmt.Errorf("pool.dataset.query: %w", err)
+		return nil, nil, fmt.Errorf("pool.dataset.query: %w", err)
 	}
 	var rawDatasets []rawDataset
 	if err := json.Unmarshal(raw, &rawDatasets); err != nil {
-		return nil, fmt.Errorf("pool.dataset.query: decode: %w", err)
+		return nil, nil, fmt.Errorf("pool.dataset.query: decode: %w", err)
 	}
+	return quotaDatasets(rawDatasets), poolUsage(rawDatasets), nil
+}
+
+// poolUsage picks the root datasets (no "/" in the name) that report both
+// used and available space.
+func poolUsage(rawDatasets []rawDataset) map[string]Usage {
+	usage := map[string]Usage{}
+	for _, rd := range rawDatasets {
+		if rd.Name == "" || strings.Contains(rd.Name, "/") {
+			continue
+		}
+		if rd.Used.Parsed == nil || rd.Available.Parsed == nil {
+			continue
+		}
+		usage[rd.Name] = Usage{Used: *rd.Used.Parsed, Available: *rd.Available.Parsed}
+	}
+	return usage
+}
+
+// ApplyUsable sets each pool's usable figures from the root datasets. A pool
+// without a usable root dataset keeps no usable figures, and the UI then shows
+// the raw ones.
+func ApplyUsable(pools []Pool, usage map[string]Usage) {
+	for i := range pools {
+		u, ok := usage[pools[i].Name]
+		if !ok || u.Used < 0 || u.Available < 0 || u.Used+u.Available == 0 {
+			continue
+		}
+		pools[i].UsableSize = u.Used + u.Available
+		pools[i].UsableUsed = u.Used
+		pools[i].UsableAvailable = u.Available
+	}
+}
+
+// quotaDatasets keeps the datasets that have a quota or refquota configured.
+func quotaDatasets(rawDatasets []rawDataset) []Dataset {
 
 	// Non-nil: with no quota anywhere this must still marshal as [], not
 	// null -- the UI iterates it unconditionally, and a null blanked the
@@ -127,5 +181,5 @@ func ListDatasets(ctx context.Context, c *Client) ([]Dataset, error) {
 			UsedBySnapshots: usedBySnapshots,
 		})
 	}
-	return datasets, nil
+	return datasets
 }

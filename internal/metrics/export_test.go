@@ -58,6 +58,28 @@ func TestUpdatePools(t *testing.T) {
 	}
 }
 
+func TestUpdatePoolUsable(t *testing.T) {
+	UpdatePoolUsable([]truenas.Pool{
+		{Name: "tank", UsableSize: 32000, UsableUsed: 1900, UsableAvailable: 30100},
+		{Name: "noroot"}, // root dataset unreadable: no series, never 0
+	})
+	if val := gaugeValue(poolUsableBytes.WithLabelValues("tank")); val != 32000 {
+		t.Errorf("usable = %f, want 32000", val)
+	}
+	if val := gaugeValue(poolAvailableBytes.WithLabelValues("tank")); val != 30100 {
+		t.Errorf("available = %f, want 30100", val)
+	}
+	if n := seriesCount(t, poolUsableBytes); n != 1 {
+		t.Errorf("usable series = %d, want 1 (no series for a pool without a root dataset)", n)
+	}
+
+	// A pool that disappears takes its series with it.
+	UpdatePoolUsable(nil)
+	if n := seriesCount(t, poolUsableBytes); n != 0 {
+		t.Errorf("usable series = %d after the pool went away, want 0", n)
+	}
+}
+
 func TestUpdateInstances(t *testing.T) {
 	instances := []vm.Instance{
 		{Name: "win", Manager: "truenas", Type: "virtual-machine", Status: "RUNNING"},
