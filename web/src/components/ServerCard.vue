@@ -66,8 +66,14 @@ function formatUptime(seconds: number): string {
         <span class="server-card__label">Version</span>
         <span class="server-card__value">
           {{ server.version }}
-          <span v-if="updateBadge(server.update)" class="badge server-card__update server-card__update--new">{{ updateBadge(server.update) }}</span>
-          <span v-else-if="appsUpdateText(server.update)" class="badge badge--gray server-card__update">{{ appsUpdateText(server.update) }}</span>
+          <span v-if="updateBadge(server.update)" class="update-pill update-pill--new">
+            <svg class="update-pill__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16V8M8.5 11.5 12 8l3.5 3.5" />
+            </svg>
+            {{ updateBadge(server.update) }}
+          </span>
+          <span v-else-if="appsUpdateText(server.update)" class="update-pill update-pill--apps">{{ appsUpdateText(server.update) }}</span>
         </span>
       </div>
       <div class="server-card__stat">
@@ -157,19 +163,34 @@ function formatUptime(seconds: number): string {
   align-items: center;
 }
 
-.server-card__update {
-  margin-left: 0.4rem;
+/* Same pill as the top bar's alert pill (App.vue .alert-pill), in the info blue:
+   an available update is information, not a warning. */
+.update-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  font-family: system-ui, sans-serif; /* the value text is monospace; the alert pill is not */
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid transparent;
   vertical-align: middle;
-  border-radius: 4px; /* squarer than the status pills: it is a tag, not a state */
 }
-
-/* An available update is information, not a warning: the info blue, not yellow. */
-.server-card__update--new {
-  background: color-mix(in srgb, var(--info-t) 15%, transparent);
+.update-pill__icon {
+  width: 14px;
+  height: 14px;
+}
+.update-pill--new {
+  background: rgb(var(--blue-rgb) / 0.15);
   color: var(--info-t);
+  border-color: rgb(var(--blue-rgb) / 0.35);
 }
-.server-card__update--new::before {
-  content: '\2191\00a0';
+.update-pill--apps {
+  background: rgb(var(--tint-rgb) / 0.06);
+  color: var(--text-dim);
+  border-color: var(--border);
 }
 
 .metric-glyph {
