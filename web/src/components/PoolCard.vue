@@ -185,17 +185,17 @@ function formatRelativeTime(ts: number): string {
 
 .rep-dot--success,
 .rep-dot--finished {
-  background: #22c55e;
+  background: var(--tone-green);
 }
 
 .rep-dot--running {
-  background: #3b82f6;
+  background: var(--tone-blue);
   animation: pulse 1.5s infinite;
 }
 
 .rep-dot--error,
 .rep-dot--failed {
-  background: #ef4444;
+  background: var(--tone-red);
 }
 
 .rep-name {

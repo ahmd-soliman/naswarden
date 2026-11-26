@@ -243,18 +243,18 @@ function formatBytes(bytes: number): string {
 }
 
 .vm-type-pill--truenas-kvm {
-  background: rgba(168, 85, 247, 0.12);
-  color: #c084fc;
+  background: rgb(var(--purple-rgb) / 0.12);
+  color: var(--tone-purple-t);
 }
 
 .vm-type-pill--incus-kvm {
-  background: rgba(6, 182, 212, 0.12);
-  color: #22d3ee;
+  background: rgb(var(--cyan-rgb) / 0.12);
+  color: var(--tone-cyan-t);
 }
 
 .vm-type-pill--incus-lxc {
-  background: rgba(107, 114, 128, 0.12);
-  color: #cbd5e1;
+  background: rgb(var(--muted-rgb) / 0.12);
+  color: var(--tone-silver-t);
 }
 
 .vm-card__strip {
@@ -306,9 +306,9 @@ function formatBytes(bytes: number): string {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.28);
+  background: rgb(var(--amber-rgb) / 0.12);
+  color: var(--tone-amber-t);
+  border: 1px solid rgb(var(--amber-rgb) / 0.28);
   padding: 0.08rem 0.38rem;
   border-radius: 4px;
   white-space: nowrap;
@@ -326,7 +326,7 @@ function formatBytes(bytes: number): string {
 .vm-card__ip {
   font-family: ui-monospace, monospace;
   font-size: 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--tint-rgb) / 0.04);
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   flex-shrink: 0;
@@ -335,7 +335,7 @@ function formatBytes(bytes: number): string {
 .vm-card__display {
   font-family: ui-monospace, monospace;
   font-size: 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--tint-rgb) / 0.04);
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
   flex-shrink: 0;
@@ -368,7 +368,7 @@ function formatBytes(bytes: number): string {
 .vm-card__stat--disk {
   margin-top: 0.15rem;
   padding-top: 0.3rem;
-  border-top: 1px dashed rgba(255, 255, 255, 0.07);
+  border-top: 1px dashed rgb(var(--tint-rgb) / 0.07);
 }
 
 .vm-card__stat-label {

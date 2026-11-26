@@ -39,6 +39,40 @@
   --gray-t: #9ca3af;
   --info-t: #6aa5f0; /* informational text (alerts); status-adjacent, brighter than --stack for contrast on tinted fills */
 
+  /* Colours that components use directly, as variables so the light theme
+     can swap them. *-rgb are bare channels for translucent tints
+     (rgb(var(--red-rgb) / 0.15)); --tone-X is a fill (bars), --tone-X-t is the
+     same hue as text. --tint-rgb is the neutral overlay on a surface: white on
+     dark, black on light. */
+  --tint-rgb: 255 255 255;
+  --red-rgb: 239 68 68;
+  --yellow-rgb: 234 179 8;
+  --blue-rgb: 59 130 246;
+  --gray-rgb: 156 163 175;
+  --green-rgb: 34 197 94;
+  --slate-rgb: 148 163 184;
+  --purple-rgb: 168 85 247;
+  --cyan-rgb: 6 182 212;
+  --amber-rgb: 245 158 11;
+  --muted-rgb: 107 114 128;
+  --tone-green: #22c55e;
+  --tone-blue: #3b82f6;
+  --tone-red: #ef4444;
+  --tone-green-t: #22c55e;
+  --tone-yellow-t: #eab308;
+  --tone-red-t: #ef4444;
+  --tone-blue-t: #3b82f6;
+  --tone-gray-t: #9ca3af;
+  --tone-slate-t: #94a3b8;
+  --tone-purple-t: #c084fc;
+  --tone-cyan-t: #22d3ee;
+  --tone-amber-t: #fbbf24;
+  --tone-silver-t: #cbd5e1;
+  --icon-tile: #eef0f3; /* logos are drawn for light backgrounds, so icons sit on a light tile in both themes */
+  --temp-bar: #5b6472;
+  --warn-bright: #fab219; /* fill behind dark text on the rail badge, in both themes */
+  --lit-mix: white; /* what a card's type colour is mixed with when it lights up */
+
   font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -46,6 +80,54 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Light theme. Every value below was checked against the surfaces it sits on:
+   text and *-t colours clear 4.5:1 on their own 12-25% tint (over the card and
+   the page), fills and accents clear 3:1 on the card, and the ok / warn / crit
+   fills stay at least 17 apart (CIE dE) under protan, deutan and tritan
+   simulation (status also always has an icon and a label). index.html / useTheme.ts
+   set data-theme before the first paint. */
+:root[data-theme='light'] {
+  --bg: #f4f5f7;
+  --card-bg: #ffffff;
+  --border: #d5d9e0;
+  --text: #1a1d23;
+  --text-dim: #4b5563;
+
+  --pool: #6c5ce0;
+  --dataset: #c2386b;
+  --stack: #2a6fd1;
+  --container: #c4491a;
+  --vm: #047a73;
+
+  --ok: #14805a; /* teal-green, not #168a16: keeps ok / warn / crit apart for colour-blind users */
+  --ok-t: #0b6b0b;
+  --warn: #b07500;
+  --warn-t: #8a5a00;
+  --crit: #be1e32;
+  --crit-t: #a31d1d;
+  --gray: #6b7280;
+  --gray-t: #4b5563;
+  --info-t: #1a56b3;
+
+  --tint-rgb: 0 0 0;
+  --lit-mix: black;
+  --tone-green: #14805a;
+  --tone-blue: #2a6fd1;
+  --tone-red: #be1e32;
+  --tone-green-t: #0b6b0b;
+  --tone-yellow-t: #7a5200;
+  --tone-red-t: #a31d1d;
+  --tone-blue-t: #1a56b3;
+  --tone-gray-t: #4b5563;
+  --tone-slate-t: #475569;
+  --tone-purple-t: #7e22ce;
+  --tone-cyan-t: #0b5f72;
+  --tone-amber-t: #8a5200;
+  --tone-silver-t: #374151;
+  --temp-bar: #8b95a5;
+  color-scheme: light;
 }
 
 * {
@@ -82,11 +164,11 @@ h1 {
    stylesheet, so it used to win -- which is why the hover never lightened the
    borders at all. Cards without an accent (Server) fall back to the border color. */
 .card--clickable {
-  --lit: color-mix(in srgb, var(--accent, var(--border)) 48%, white);
+  --lit: color-mix(in srgb, var(--accent, var(--border)) 48%, var(--lit-mix));
 }
 .card--clickable.card--open,
 .card--clickable.card--clickable.card--open {
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgb(var(--tint-rgb) / 0.25);
   border-top-color: var(--lit);
   box-shadow:
     inset 0 2px 0 0 var(--lit),
@@ -96,7 +178,7 @@ h1 {
 /* :hover only where hovering exists -- on touch it sticks after a tap */
 @media (hover: hover) {
   .card--clickable.card--clickable:hover {
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: rgb(var(--tint-rgb) / 0.25);
     border-top-color: var(--lit);
     box-shadow:
       inset 0 2px 0 0 var(--lit),
@@ -192,7 +274,7 @@ h1 {
   gap: 1rem;
   font-size: 0.85rem;
   padding: 0.35rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgb(var(--tint-rgb) / 0.04);
 }
 .drawer__kv span:first-child {
   color: var(--text-dim);
@@ -204,7 +286,7 @@ h1 {
 }
 
 .drawer__mount {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--tint-rgb) / 0.03);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
@@ -335,7 +417,7 @@ h1 {
   justify-content: space-between;
   gap: 0.75rem;
   width: 100%;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--tint-rgb) / 0.03);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
@@ -347,7 +429,7 @@ h1 {
   transition: border-color 0.15s ease;
 }
 .drawer__row:hover {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgb(var(--tint-rgb) / 0.3);
 }
 .drawer__row-main {
   display: flex;

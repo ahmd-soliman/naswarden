@@ -25,6 +25,8 @@ import TempRange from './components/TempRange.vue'
 import ListTable from './components/ListTable.vue'
 import type { Column } from './components/ListTable.vue'
 import ViewToggle from './components/ViewToggle.vue'
+import ThemeToggle from './components/ThemeToggle.vue'
+import { useTheme } from './composables/useTheme'
 import { usePoolSocket } from './composables/usePoolSocket'
 import type { Alert, Container, Dataset, Disk, Pool, ServerInfo, VM } from './composables/usePoolSocket'
 import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped, memberBadge, stackBadgeLabel } from './composables/useStacks'
@@ -403,6 +405,7 @@ function stackActive(name: string) {
 }
 
 // ---- desktop: card/table lists and the docked detail panel ---------------
+const theme = useTheme()
 const stackView = useViewMode('stacks', 'cards')
 const containerView = useViewMode('containers', 'table')
 const HEALTH_ORDER: Record<string, number> = { red: 0, yellow: 1, green: 2, gray: 3 }
@@ -507,6 +510,7 @@ const alertPillLabel = computed(() => {
             {{ connLabel }}
           </span>
         </div>
+        <ThemeToggle v-model="theme" />
       </div>
     </header>
 
@@ -919,33 +923,33 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 }
 
 .alert-pill--critical {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgb(var(--red-rgb) / 0.15);
   color: var(--crit-t);
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: rgb(var(--red-rgb) / 0.35);
 }
 
 .alert-pill--critical:hover {
-  background: rgba(239, 68, 68, 0.25);
+  background: rgb(var(--red-rgb) / 0.25);
 }
 
 .alert-pill--warning {
-  background: rgba(234, 179, 8, 0.15);
+  background: rgb(var(--yellow-rgb) / 0.15);
   color: var(--warn-t);
-  border-color: rgba(234, 179, 8, 0.35);
+  border-color: rgb(var(--yellow-rgb) / 0.35);
 }
 
 .alert-pill--warning:hover {
-  background: rgba(234, 179, 8, 0.25);
+  background: rgb(var(--yellow-rgb) / 0.25);
 }
 
 .alert-pill--info {
-  background: rgba(59, 130, 246, 0.15);
+  background: rgb(var(--blue-rgb) / 0.15);
   color: var(--info-t);
-  border-color: rgba(59, 130, 246, 0.35);
+  border-color: rgb(var(--blue-rgb) / 0.35);
 }
 
 .alert-pill--info:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgb(var(--blue-rgb) / 0.25);
 }
 
 .conn-group {
@@ -1042,7 +1046,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 }
 
 .rail__badge--warn {
-  background: var(--warn);
+  background: var(--warn-bright);
   color: #111;
 }
 

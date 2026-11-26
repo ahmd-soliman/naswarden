@@ -19,6 +19,10 @@ Demo data, not a real system: a made-up TrueNAS with catalog apps ([`web/scripts
 
 ![Disks with the detail panel open](docs/screenshots/screenshot-disks.png)
 
+Light theme (follows the system by default; the switch in the top bar picks System, Light or Dark):
+
+![Overview in the light theme](docs/screenshots/screenshot-light.png)
+
 ![Docker stacks](docs/screenshots/screenshot-stacks.png)
 
 ---
@@ -56,6 +60,7 @@ Demo data, not a real system: a made-up TrueNAS with catalog apps ([`web/scripts
 ### 5. Glanceable UI & Accessibility
 - **Responsive Layout**: Sticky left-nav rail with live alert counters for quick section jumping (`All`, `Server`, `Pools`, `Datasets`, `VMs`, `Stacks`, `Containers`), collapsing smoothly on mobile.
 - **Slide-In Detail Drawers**: Deep dive into hardware, vdevs, storage mountpoints, network interfaces, and container mounts without leaving the page. Fully keyboard accessible (`Escape` to close, `Tab` focus trap, focus restoration).
+- **Light and dark themes**: follows the system by default; a System / Light / Dark switch in the top bar overrides it and is remembered in the browser. The theme is set before the first paint, so there is no flash.
 - **Global Search Filter**: Fast search box (`/` shortcut) filtering pools, datasets, stacks, and virtual machines simultaneously.
 
 ---

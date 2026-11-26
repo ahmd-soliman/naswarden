@@ -149,11 +149,11 @@ tbody tr:last-child td {
   cursor: pointer;
 }
 .lt__row:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--tint-rgb) / 0.03);
 }
 .lt__row--open {
   /* kept subtle: status badges on it must stay >= 4.5:1 */
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--tint-rgb) / 0.04);
   box-shadow: inset 3px 0 0 var(--accent, var(--text-dim));
 }
 .lt__num {
