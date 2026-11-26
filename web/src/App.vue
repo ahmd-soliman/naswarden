@@ -25,6 +25,8 @@ import TempRange from './components/TempRange.vue'
 import ListTable from './components/ListTable.vue'
 import type { Column } from './components/ListTable.vue'
 import ViewToggle from './components/ViewToggle.vue'
+import ThemeToggle from './components/ThemeToggle.vue'
+import { useTheme } from './composables/useTheme'
 import { usePoolSocket } from './composables/usePoolSocket'
 import type { Alert, Container, Dataset, Disk, Pool, ServerInfo, VM } from './composables/usePoolSocket'
 import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped, memberBadge, stackBadgeLabel } from './composables/useStacks'
@@ -403,6 +405,7 @@ function stackActive(name: string) {
 }
 
 // ---- desktop: card/table lists and the docked detail panel ---------------
+const theme = useTheme()
 const stackView = useViewMode('stacks', 'cards')
 const containerView = useViewMode('containers', 'table')
 const HEALTH_ORDER: Record<string, number> = { red: 0, yellow: 1, green: 2, gray: 3 }
@@ -507,6 +510,7 @@ const alertPillLabel = computed(() => {
             {{ connLabel }}
           </span>
         </div>
+        <ThemeToggle v-model="theme" />
       </div>
     </header>
 
@@ -1042,7 +1046,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 }
 
 .rail__badge--warn {
-  background: var(--warn);
+  background: var(--warn-bright);
   color: #111;
 }
 

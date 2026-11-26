@@ -5,6 +5,15 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NasWarden</title>
+    <!-- Sets the theme before the first paint so a light user never sees a
+         dark flash. Keep in step with useTheme.ts (same key, same rule). -->
+    <script>
+      try {
+        var t = localStorage.getItem('naswarden:theme')
+        var light = t === 'light' || (t !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches)
+        document.documentElement.dataset.theme = light ? 'light' : 'dark'
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

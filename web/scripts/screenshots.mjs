@@ -27,6 +27,7 @@ function version() {
 
 const shots = [
   { name: 'overview', size: { width: 1440, height: 1000 }, act: async () => {} },
+  { name: 'light', size: { width: 1440, height: 1000 }, scheme: 'light', act: async () => {} },
   {
     name: 'disks',
     size: { width: 1440, height: 1000 },
@@ -52,7 +53,7 @@ const build = { version: version(), commit: 'demo', date: new Date().toISOString
 
 try {
   for (const shot of shots) {
-    const page = await browser.newPage({ viewport: shot.size })
+    const page = await browser.newPage({ viewport: shot.size, colorScheme: shot.scheme ?? 'dark' })
     const timers = []
     const errors = []
     page.on('pageerror', (e) => errors.push(e.message))

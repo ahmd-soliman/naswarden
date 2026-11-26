@@ -70,6 +70,8 @@
   --tone-silver-t: #cbd5e1;
   --icon-tile: #eef0f3; /* logos are drawn for light backgrounds, so icons sit on a light tile in both themes */
   --temp-bar: #5b6472;
+  --warn-bright: #fab219; /* fill behind dark text on the rail badge, in both themes */
+  --lit-mix: white; /* what a card's type colour is mixed with when it lights up */
 
   font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
@@ -78,6 +80,52 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Light theme. Every value below was checked against the surfaces it sits on:
+   text and *-t colours clear 4.5:1 on their own 12-25% tint (over the card and
+   the page), fills and accents clear 3:1 on the card. index.html / useTheme.ts
+   set data-theme before the first paint. */
+:root[data-theme='light'] {
+  --bg: #f4f5f7;
+  --card-bg: #ffffff;
+  --border: #d5d9e0;
+  --text: #1a1d23;
+  --text-dim: #4b5563;
+
+  --pool: #6c5ce0;
+  --dataset: #c2386b;
+  --stack: #2a6fd1;
+  --container: #c4491a;
+  --vm: #047a73;
+
+  --ok: #168a16;
+  --ok-t: #0b6b0b;
+  --warn: #b07500;
+  --warn-t: #8a5a00;
+  --crit: #d03a3a;
+  --crit-t: #a31d1d;
+  --gray: #6b7280;
+  --gray-t: #4b5563;
+  --info-t: #1a56b3;
+
+  --tint-rgb: 0 0 0;
+  --lit-mix: black;
+  --tone-green: #168a16;
+  --tone-blue: #2a6fd1;
+  --tone-red: #d03a3a;
+  --tone-green-t: #0b6b0b;
+  --tone-yellow-t: #7a5200;
+  --tone-red-t: #a31d1d;
+  --tone-blue-t: #1a56b3;
+  --tone-gray-t: #4b5563;
+  --tone-slate-t: #475569;
+  --tone-purple-t: #7e22ce;
+  --tone-cyan-t: #0b5f72;
+  --tone-amber-t: #8a5200;
+  --tone-silver-t: #374151;
+  --temp-bar: #8b95a5;
+  color-scheme: light;
 }
 
 * {
@@ -114,7 +162,7 @@ h1 {
    stylesheet, so it used to win -- which is why the hover never lightened the
    borders at all. Cards without an accent (Server) fall back to the border color. */
 .card--clickable {
-  --lit: color-mix(in srgb, var(--accent, var(--border)) 48%, white);
+  --lit: color-mix(in srgb, var(--accent, var(--border)) 48%, var(--lit-mix));
 }
 .card--clickable.card--open,
 .card--clickable.card--clickable.card--open {
