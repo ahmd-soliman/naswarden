@@ -203,7 +203,7 @@ All configuration is provided via environment variables:
 
 | Env Var | Required | Default | Description |
 |---|---|---|---|
-| `TRUENAS_HOST` | **Yes** | — | TrueNAS host and port, e.g. `truenas.local:8443` |
+| `TRUENAS_HOST` | **Yes** | — | TrueNAS host and port, e.g. `truenas.local:8443`, without `https://`. An address copied from the browser (`https://truenas.local:8443/`) is accepted: NasWarden drops the scheme with a warning, and uses TLS if `TRUENAS_TLS` is not set |
 | `TRUENAS_API_KEY` | **Yes** | — | API key generated in TrueNAS (Credentials → Users → the user → Access → View API Keys, 25.x); see [Setup](#setup) |
 | `TRUENAS_TLS` | No | `false` | Set `true` to connect over `wss://` |
 | `TRUENAS_INSECURE_TLS` | No | `false` | Set `true` to skip certificate validation (e.g. self-signed TrueNAS certs) |
