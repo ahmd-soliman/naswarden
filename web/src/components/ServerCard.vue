@@ -159,7 +159,6 @@ function formatUptime(seconds: number): string {
 
 .server-card__update {
   margin-left: 0.4rem;
-  font-size: 0.7rem;
   vertical-align: middle;
 }
 
