@@ -160,6 +160,7 @@ function formatUptime(seconds: number): string {
 .server-card__update {
   margin-left: 0.4rem;
   vertical-align: middle;
+  border-radius: 4px; /* squarer than the status pills: it is a tag, not a state */
 }
 
 /* An available update is information, not a warning: the info blue, not yellow. */
