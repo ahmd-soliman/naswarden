@@ -60,7 +60,7 @@ const url = computed(() => {
   box-sizing: border-box;
   padding: 2px;
   border-radius: 6px;
-  background: #eef0f3;
+  background: var(--icon-tile);
 }
 
 .app-icon--fallback {

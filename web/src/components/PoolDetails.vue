@@ -141,27 +141,27 @@ function formatDate(ts: number): string {
 }
 
 .temp-badge--cool {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgb(var(--green-rgb) / 0.15);
+  color: var(--tone-green-t);
+  border: 1px solid rgb(var(--green-rgb) / 0.3);
 }
 
 .temp-badge--warm {
-  background: rgba(234, 179, 8, 0.15);
-  color: #eab308;
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  background: rgb(var(--yellow-rgb) / 0.15);
+  color: var(--tone-yellow-t);
+  border: 1px solid rgb(var(--yellow-rgb) / 0.3);
 }
 
 .temp-badge--hot {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgb(var(--red-rgb) / 0.15);
+  color: var(--tone-red-t);
+  border: 1px solid rgb(var(--red-rgb) / 0.3);
 }
 
 .temp-badge--standby {
-  background: rgba(148, 163, 184, 0.12);
-  color: #94a3b8;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgb(var(--slate-rgb) / 0.12);
+  color: var(--tone-slate-t);
+  border: 1px solid rgb(var(--slate-rgb) / 0.25);
   font-style: italic;
 }
 
@@ -172,7 +172,7 @@ function formatDate(ts: number): string {
 }
 
 .rep-card {
-  background: var(--bg-card, rgba(255, 255, 255, 0.03));
+  background: var(--bg-card, rgb(var(--tint-rgb) / 0.03));
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.75rem;
@@ -232,26 +232,26 @@ function formatDate(ts: number): string {
 }
 
 .badge--green {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background: rgb(var(--green-rgb) / 0.15);
+  color: var(--tone-green-t);
+  border: 1px solid rgb(var(--green-rgb) / 0.3);
 }
 
 .badge--blue {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgb(var(--blue-rgb) / 0.15);
+  color: var(--tone-blue-t);
+  border: 1px solid rgb(var(--blue-rgb) / 0.3);
 }
 
 .badge--red {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgb(var(--red-rgb) / 0.15);
+  color: var(--tone-red-t);
+  border: 1px solid rgb(var(--red-rgb) / 0.3);
 }
 
 .badge--gray {
-  background: rgba(156, 163, 175, 0.15);
-  color: #9ca3af;
-  border: 1px solid rgba(156, 163, 175, 0.3);
+  background: rgb(var(--gray-rgb) / 0.15);
+  color: var(--tone-gray-t);
+  border: 1px solid rgb(var(--gray-rgb) / 0.3);
 }
 </style>

@@ -39,6 +39,38 @@
   --gray-t: #9ca3af;
   --info-t: #6aa5f0; /* informational text (alerts); status-adjacent, brighter than --stack for contrast on tinted fills */
 
+  /* Colours that components use directly, as variables so the light theme
+     can swap them. *-rgb are bare channels for translucent tints
+     (rgb(var(--red-rgb) / 0.15)); --tone-X is a fill (bars), --tone-X-t is the
+     same hue as text. --tint-rgb is the neutral overlay on a surface: white on
+     dark, black on light. */
+  --tint-rgb: 255 255 255;
+  --red-rgb: 239 68 68;
+  --yellow-rgb: 234 179 8;
+  --blue-rgb: 59 130 246;
+  --gray-rgb: 156 163 175;
+  --green-rgb: 34 197 94;
+  --slate-rgb: 148 163 184;
+  --purple-rgb: 168 85 247;
+  --cyan-rgb: 6 182 212;
+  --amber-rgb: 245 158 11;
+  --muted-rgb: 107 114 128;
+  --tone-green: #22c55e;
+  --tone-blue: #3b82f6;
+  --tone-red: #ef4444;
+  --tone-green-t: #22c55e;
+  --tone-yellow-t: #eab308;
+  --tone-red-t: #ef4444;
+  --tone-blue-t: #3b82f6;
+  --tone-gray-t: #9ca3af;
+  --tone-slate-t: #94a3b8;
+  --tone-purple-t: #c084fc;
+  --tone-cyan-t: #22d3ee;
+  --tone-amber-t: #fbbf24;
+  --tone-silver-t: #cbd5e1;
+  --icon-tile: #eef0f3; /* logos are drawn for light backgrounds, so icons sit on a light tile in both themes */
+  --temp-bar: #5b6472;
+
   font: 15px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
@@ -86,7 +118,7 @@ h1 {
 }
 .card--clickable.card--open,
 .card--clickable.card--clickable.card--open {
-  border-color: rgba(255, 255, 255, 0.25);
+  border-color: rgb(var(--tint-rgb) / 0.25);
   border-top-color: var(--lit);
   box-shadow:
     inset 0 2px 0 0 var(--lit),
@@ -96,7 +128,7 @@ h1 {
 /* :hover only where hovering exists -- on touch it sticks after a tap */
 @media (hover: hover) {
   .card--clickable.card--clickable:hover {
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: rgb(var(--tint-rgb) / 0.25);
     border-top-color: var(--lit);
     box-shadow:
       inset 0 2px 0 0 var(--lit),
@@ -192,7 +224,7 @@ h1 {
   gap: 1rem;
   font-size: 0.85rem;
   padding: 0.35rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgb(var(--tint-rgb) / 0.04);
 }
 .drawer__kv span:first-child {
   color: var(--text-dim);
@@ -204,7 +236,7 @@ h1 {
 }
 
 .drawer__mount {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--tint-rgb) / 0.03);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
@@ -335,7 +367,7 @@ h1 {
   justify-content: space-between;
   gap: 0.75rem;
   width: 100%;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(var(--tint-rgb) / 0.03);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
@@ -347,7 +379,7 @@ h1 {
   transition: border-color 0.15s ease;
 }
 .drawer__row:hover {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: rgb(var(--tint-rgb) / 0.3);
 }
 .drawer__row-main {
   display: flex;

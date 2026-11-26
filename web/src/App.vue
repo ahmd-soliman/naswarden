@@ -919,33 +919,33 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 }
 
 .alert-pill--critical {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgb(var(--red-rgb) / 0.15);
   color: var(--crit-t);
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: rgb(var(--red-rgb) / 0.35);
 }
 
 .alert-pill--critical:hover {
-  background: rgba(239, 68, 68, 0.25);
+  background: rgb(var(--red-rgb) / 0.25);
 }
 
 .alert-pill--warning {
-  background: rgba(234, 179, 8, 0.15);
+  background: rgb(var(--yellow-rgb) / 0.15);
   color: var(--warn-t);
-  border-color: rgba(234, 179, 8, 0.35);
+  border-color: rgb(var(--yellow-rgb) / 0.35);
 }
 
 .alert-pill--warning:hover {
-  background: rgba(234, 179, 8, 0.25);
+  background: rgb(var(--yellow-rgb) / 0.25);
 }
 
 .alert-pill--info {
-  background: rgba(59, 130, 246, 0.15);
+  background: rgb(var(--blue-rgb) / 0.15);
   color: var(--info-t);
-  border-color: rgba(59, 130, 246, 0.35);
+  border-color: rgb(var(--blue-rgb) / 0.35);
 }
 
 .alert-pill--info:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgb(var(--blue-rgb) / 0.25);
 }
 
 .conn-group {

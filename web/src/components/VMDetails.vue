@@ -171,18 +171,18 @@ const filteredConfig = computed(() => {
 }
 
 .vm-type-pill--truenas-kvm {
-  background: rgba(168, 85, 247, 0.12);
-  color: #c084fc;
+  background: rgb(var(--purple-rgb) / 0.12);
+  color: var(--tone-purple-t);
 }
 
 .vm-type-pill--incus-kvm {
-  background: rgba(6, 182, 212, 0.12);
-  color: #22d3ee;
+  background: rgb(var(--cyan-rgb) / 0.12);
+  color: var(--tone-cyan-t);
 }
 
 .vm-type-pill--incus-lxc {
-  background: rgba(107, 114, 128, 0.12);
-  color: #cbd5e1;
+  background: rgb(var(--muted-rgb) / 0.12);
+  color: var(--tone-silver-t);
 }
 
 .drawer__dim-note {
@@ -198,7 +198,7 @@ const filteredConfig = computed(() => {
 .drawer__mono-val {
   font-family: ui-monospace, monospace;
   font-size: 0.8rem;
-  color: #cbd5e1;
+  color: var(--tone-silver-t);
 }
 
 .drawer__mono-key {

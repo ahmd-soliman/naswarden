@@ -63,7 +63,7 @@ const hasRange = computed(() => props.disk.temp_7d_min !== undefined && props.di
   position: absolute;
   top: 0;
   bottom: 0;
-  background: #5b6472;
+  background: var(--temp-bar);
   border-radius: 999px;
 }
 .temp__bar u {

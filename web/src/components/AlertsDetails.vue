@@ -84,7 +84,7 @@ function levelClass(level: string): string {
 }
 
 .alert-item {
-  background: var(--bg-card, rgba(255, 255, 255, 0.03));
+  background: var(--bg-card, rgb(var(--tint-rgb) / 0.03));
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.75rem;
@@ -137,26 +137,26 @@ function levelClass(level: string): string {
 }
 
 .badge--red {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgb(var(--red-rgb) / 0.15);
   color: var(--crit-t);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgb(var(--red-rgb) / 0.3);
 }
 
 .badge--yellow {
-  background: rgba(234, 179, 8, 0.15);
+  background: rgb(var(--yellow-rgb) / 0.15);
   color: var(--warn-t);
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  border: 1px solid rgb(var(--yellow-rgb) / 0.3);
 }
 
 .badge--blue {
-  background: rgba(59, 130, 246, 0.15);
+  background: rgb(var(--blue-rgb) / 0.15);
   color: var(--info-t);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid rgb(var(--blue-rgb) / 0.3);
 }
 
 .badge--gray {
-  background: rgba(156, 163, 175, 0.15);
-  color: #9ca3af;
-  border: 1px solid rgba(156, 163, 175, 0.3);
+  background: rgb(var(--gray-rgb) / 0.15);
+  color: var(--tone-gray-t);
+  border: 1px solid rgb(var(--gray-rgb) / 0.3);
 }
 </style>

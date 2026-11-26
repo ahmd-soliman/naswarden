@@ -45,7 +45,7 @@ const mode = defineModel<ViewMode>({ required: true })
   border-left: 1px solid var(--border);
 }
 .view-toggle button[aria-pressed='true'] {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--tint-rgb) / 0.08);
   color: var(--text);
 }
 .view-toggle button:hover {
