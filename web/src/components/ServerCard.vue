@@ -66,7 +66,7 @@ function formatUptime(seconds: number): string {
         <span class="server-card__label">Version</span>
         <span class="server-card__value">
           {{ server.version }}
-          <span v-if="updateBadge(server.update)" class="badge badge--yellow server-card__update">{{ updateBadge(server.update) }}</span>
+          <span v-if="updateBadge(server.update)" class="badge server-card__update server-card__update--new">{{ updateBadge(server.update) }}</span>
           <span v-else-if="appsUpdateText(server.update)" class="badge badge--gray server-card__update">{{ appsUpdateText(server.update) }}</span>
         </span>
       </div>
@@ -160,6 +160,15 @@ function formatUptime(seconds: number): string {
 .server-card__update {
   margin-left: 0.4rem;
   vertical-align: middle;
+}
+
+/* An available update is information, not a warning: the info blue, not yellow. */
+.server-card__update--new {
+  background: color-mix(in srgb, var(--info-t) 15%, transparent);
+  color: var(--info-t);
+}
+.server-card__update--new::before {
+  content: '\2191\00a0';
 }
 
 .metric-glyph {
