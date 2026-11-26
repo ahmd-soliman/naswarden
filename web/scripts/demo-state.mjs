@@ -164,6 +164,7 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
       load_percent_5: 16,
       load_percent_15: 15,
       arc_bytes: 18 * GiB,
+      update: { available: true, version: '25.10.2', release_notes_url: 'https://www.truenas.com/docs/', apps_with_updates: 2, checked_at: now - 3600 },
       interfaces: [
         {
           name: 'enp3s0',

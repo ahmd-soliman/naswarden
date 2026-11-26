@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { Interface, ServerInfo } from '../composables/usePoolSocket'
 import { formatBitrate } from '../composables/format'
+import { appsUpdateText, safeLink, updateBadge } from '../composables/updateInfo'
 
 const props = defineProps<{ server: ServerInfo }>()
 
@@ -31,6 +32,19 @@ function utilisation(iface: Interface): number | null {
 </script>
 
 <template>
+  <div v-if="server.update" class="drawer__section">
+    <h3>Updates</h3>
+    <div class="drawer__kv">
+      <span>TrueNAS</span>
+      <span>
+        {{ updateBadge(server.update) ?? 'Up to date' }}
+        <a v-if="safeLink(server.update.release_notes_url)" :href="safeLink(server.update.release_notes_url)!" target="_blank" rel="noopener noreferrer">release notes</a>
+      </span>
+    </div>
+    <div class="drawer__kv"><span>Catalog apps</span><span>{{ appsUpdateText(server.update) ?? 'All up to date' }}</span></div>
+    <div class="drawer__kv"><span>Checked</span><span>{{ new Date(server.update.checked_at * 1000).toLocaleString() }}</span></div>
+  </div>
+
   <div class="drawer__section">
     <h3>Processor</h3>
     <div class="drawer__kv"><span>Model</span><span>{{ server.cpu_model }}</span></div>

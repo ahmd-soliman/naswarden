@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { ServerInfo } from '../composables/usePoolSocket'
 import { formatBitrate } from '../composables/format'
+import { appsUpdateText, updateBadge } from '../composables/updateInfo'
 
 const props = defineProps<{ server: ServerInfo; active?: boolean }>()
 defineEmits<{ select: [] }>()
@@ -63,7 +64,11 @@ function formatUptime(seconds: number): string {
       </div>
       <div class="server-card__stat">
         <span class="server-card__label">Version</span>
-        <span class="server-card__value">{{ server.version }}</span>
+        <span class="server-card__value">
+          {{ server.version }}
+          <span v-if="updateBadge(server.update)" class="badge badge--yellow server-card__update">{{ updateBadge(server.update) }}</span>
+          <span v-else-if="appsUpdateText(server.update)" class="badge badge--gray server-card__update">{{ appsUpdateText(server.update) }}</span>
+        </span>
       </div>
       <div class="server-card__stat">
         <span class="server-card__label">Uptime</span>
@@ -150,6 +155,12 @@ function formatUptime(seconds: number): string {
   letter-spacing: 0.04em;
   display: flex;
   align-items: center;
+}
+
+.server-card__update {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  vertical-align: middle;
 }
 
 .metric-glyph {

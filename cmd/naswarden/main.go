@@ -102,6 +102,7 @@ func main() {
 	health := newHealth(refreshInterval * 3)
 	cache := &lastGood{docker: dockerStat}
 	diskRates := truenas.NewDiskRates()
+	updates := truenas.NewUpdateChecker(client)
 
 	// Refresh loop: poll TrueNAS, Docker, and Incus, push to every connected
 	// client. Decoupled from any client's own connection lifecycle or Prometheus
@@ -110,7 +111,7 @@ func main() {
 		ticker := time.NewTicker(refreshInterval)
 		defer ticker.Stop()
 		for {
-			refresh(client, dockerClient, incusClient, hub, cache, health, diskRates)
+			refresh(client, dockerClient, incusClient, hub, cache, health, diskRates, updates)
 			<-ticker.C
 		}
 	}()
@@ -148,7 +149,7 @@ func main() {
 // renders a consistent snapshot, not pools, datasets, and instances from
 // different refresh moments), and separately fed into the Prometheus
 // gauges for /metrics.
-func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *incus.Client, hub *ws.Hub, cache *lastGood, health *healthState, diskRates *truenas.DiskRates) {
+func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *incus.Client, hub *ws.Hub, cache *lastGood, health *healthState, diskRates *truenas.DiskRates, updates *truenas.UpdateChecker) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -158,6 +159,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		notifyError(hub, "server info", err)
 		return
 	}
+	server.Update = updates.Get()
 
 	pools, err := truenas.ListPools(ctx, client)
 	if err != nil {
