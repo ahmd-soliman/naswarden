@@ -152,6 +152,8 @@ func init() {
 		datasetQuotaBytes,
 		poolAllocatedBytes,
 		poolSizeBytes,
+		poolUsableBytes,
+		poolAvailableBytes,
 		poolHealthy,
 		instanceUp,
 		containerUp,
@@ -176,7 +178,6 @@ func UpdateDatasets(datasets []truenas.Dataset) {
 	doneQuota()
 }
 
-// UpdatePools refreshes the ZFS pool capacity, health, and disk temperature gauges.
 // UpdatePoolUsable exports the usable capacity of the pools that have it.
 // A pool whose root dataset could not be read has no series (never 0), and a
 // series disappears when its pool does.
@@ -194,6 +195,7 @@ func UpdatePoolUsable(pools []truenas.Pool) {
 	doneAvail()
 }
 
+// UpdatePools refreshes the ZFS pool capacity, health, and disk temperature gauges.
 func UpdatePools(pools []truenas.Pool) {
 	setAlloc, doneAlloc := poolAllocSeries.begin()
 	setSize, doneSize := poolSizeSeries.begin()

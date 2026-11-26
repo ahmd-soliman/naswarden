@@ -219,3 +219,28 @@ func TestUpdateRefreshMarksStaleSources(t *testing.T) {
 		t.Fatalf("docker should recover, got %f", v)
 	}
 }
+
+// The gauges are only useful if they are registered: a metric that is set but
+// never registered is silently absent from /metrics. This reads what the real
+// registry exposes, which is what Prometheus scrapes.
+func TestPoolUsableMetricsAreExposedOnTheRegistry(t *testing.T) {
+	UpdatePoolUsable([]truenas.Pool{{Name: "tank", UsableSize: 32000, UsableUsed: 1900, UsableAvailable: 30100}})
+	t.Cleanup(func() { UpdatePoolUsable(nil) })
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]float64{"naswarden_pool_usable_bytes": 32000, "naswarden_pool_available_bytes": 30100}
+	for _, f := range families {
+		if v, ok := want[f.GetName()]; ok {
+			if got := f.GetMetric()[0].GetGauge().GetValue(); got != v {
+				t.Errorf("%s = %v, want %v", f.GetName(), got, v)
+			}
+			delete(want, f.GetName())
+		}
+	}
+	for name := range want {
+		t.Errorf("%s is not exposed: register it in init()", name)
+	}
+}
