@@ -84,7 +84,9 @@
 
 /* Light theme. Every value below was checked against the surfaces it sits on:
    text and *-t colours clear 4.5:1 on their own 12-25% tint (over the card and
-   the page), fills and accents clear 3:1 on the card. index.html / useTheme.ts
+   the page), fills and accents clear 3:1 on the card, and the ok / warn / crit
+   fills stay at least 17 apart (CIE dE) under protan, deutan and tritan
+   simulation (status also always has an icon and a label). index.html / useTheme.ts
    set data-theme before the first paint. */
 :root[data-theme='light'] {
   --bg: #f4f5f7;
@@ -99,11 +101,11 @@
   --container: #c4491a;
   --vm: #047a73;
 
-  --ok: #168a16;
+  --ok: #14805a; /* teal-green, not #168a16: keeps ok / warn / crit apart for colour-blind users */
   --ok-t: #0b6b0b;
   --warn: #b07500;
   --warn-t: #8a5a00;
-  --crit: #d03a3a;
+  --crit: #be1e32;
   --crit-t: #a31d1d;
   --gray: #6b7280;
   --gray-t: #4b5563;
@@ -111,9 +113,9 @@
 
   --tint-rgb: 0 0 0;
   --lit-mix: black;
-  --tone-green: #168a16;
+  --tone-green: #14805a;
   --tone-blue: #2a6fd1;
-  --tone-red: #d03a3a;
+  --tone-red: #be1e32;
   --tone-green-t: #0b6b0b;
   --tone-yellow-t: #7a5200;
   --tone-red-t: #a31d1d;
