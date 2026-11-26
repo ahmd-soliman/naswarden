@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Pool, ReplicationTask } from '../composables/usePoolSocket'
+import { formatBytes } from '../composables/format'
+import { poolCapacity } from '../composables/poolCapacity'
 
 const props = defineProps<{
   pool: Pool
@@ -13,6 +15,8 @@ const poolReplications = computed(() => {
     (t) => t.target_pool === props.pool.name || t.source_pools.includes(props.pool.name),
   )
 })
+
+const capacity = computed(() => poolCapacity(props.pool))
 
 function tempClass(c: number): string {
   if (c < 45) return 'temp-badge--cool'
@@ -50,6 +54,17 @@ function formatDate(ts: number): string {
 </script>
 
 <template>
+  <div class="drawer__section">
+    <h3>Capacity</h3>
+    <template v-if="capacity.usable">
+      <div class="drawer__kv"><span>Usable</span><span>{{ formatBytes(capacity.used) }} / {{ formatBytes(capacity.total) }} ({{ capacity.percent }}%)</span></div>
+      <div class="drawer__kv"><span>Available</span><span>{{ formatBytes(pool.usable_available ?? 0) }}</span></div>
+    </template>
+    <div class="drawer__kv" :title="'The zpool figure: includes RAIDZ parity and the ZFS reserve, so it is higher than what files can use'">
+      <span>Raw size</span><span>{{ formatBytes(pool.allocated) }} / {{ formatBytes(pool.size) }}</span>
+    </div>
+  </div>
+
   <div class="drawer__section">
     <h3>Layout</h3>
     <div class="drawer__kv"><span>Fragmentation</span><span>{{ pool.fragmentation }}%</span></div>

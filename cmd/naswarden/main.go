@@ -167,13 +167,15 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	}
 	metrics.UpdatePools(pools)
 
-	datasets, err := truenas.ListDatasets(ctx, client)
+	datasets, usage, err := truenas.ListDatasetsWithUsage(ctx, client)
 	if err != nil {
 		slog.Error("failed to refresh datasets", "err", err)
 		notifyError(hub, "datasets", err)
 		return
 	}
 	metrics.UpdateDatasets(datasets)
+	truenas.ApplyUsable(pools, usage)
+	metrics.UpdatePoolUsable(pools)
 
 	// Docker is optional and refreshed best-effort -- a failure here
 	// (proxy briefly unreachable) shouldn't take down pool/dataset

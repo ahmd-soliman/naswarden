@@ -605,7 +605,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "naswarden_pool_allocated_bytes / naswarden_pool_size_bytes",
+          "expr": "(naswarden_pool_usable_bytes - naswarden_pool_available_bytes) / naswarden_pool_usable_bytes or naswarden_pool_allocated_bytes / naswarden_pool_size_bytes",
           "legendFormat": "{{pool}}",
           "refId": "A",
           "editorMode": "code",

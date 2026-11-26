@@ -11,7 +11,11 @@ function child(disk, temp, standby = false) {
   return { disk, status: 'ONLINE', read_errors: 0, write_errors: 0, checksum_errors: 0, temperature_c: standby ? null : temp, standby }
 }
 
-function pool(name, size, allocated, type, vdev, children) {
+// usable: what the root dataset reports, as a share of the raw zpool figures
+// (RAIDZ parity and ZFS's slop reservation are gone from it).
+function pool(name, size, allocated, type, vdev, children, usable = 0.97) {
+  const usableSize = Math.round(size * usable)
+  const usableUsed = Math.round(allocated * usable)
   return {
     name,
     status: 'ONLINE',
@@ -20,6 +24,9 @@ function pool(name, size, allocated, type, vdev, children) {
     size,
     allocated,
     free: size - allocated,
+    usable_size: usableSize,
+    usable_used: usableUsed,
+    usable_available: usableSize - usableUsed,
     fragmentation: '8',
     scan: { function: 'SCRUB', state: 'FINISHED', errors: 0 },
     vdevs: [{ name: vdev, type, status: 'ONLINE', children }],
@@ -184,7 +191,7 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
       cpu_temp_c: 47,
     },
     pools: [
-      pool('tank', 43 * TB, 21 * TB, 'RAIDZ1', 'raidz1-0', [child('sda', 41), child('sdb', 42), child('sdc', 43), child('sdd', 41)]),
+      pool('tank', 43 * TB, 21 * TB, 'RAIDZ1', 'raidz1-0', [child('sda', 41), child('sdb', 42), child('sdc', 43), child('sdd', 41)], 0.73),
       pool('fast', 3.6 * TB, 1.1 * TB, 'MIRROR', 'mirror-0', [child('sde', 36), child('sdf', 37)]),
       pool('backup', 12 * TB, 4.4 * TB, 'MIRROR', 'mirror-0', [child('sdg', 0, true), child('sdh', 0, true)]),
       pool('boot-pool', 238 * GB, 6 * GB, 'STRIPE', 'stripe', [child('nvme0n1', 39)]),
