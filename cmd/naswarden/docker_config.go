@@ -49,6 +49,25 @@ func dockerAddress(getenv func(string) string, isSocket func(string) bool) (vari
 	return variable, address, warning, nil
 }
 
+// checkDockerSocket probes the Docker socket once. A socket nothing listens
+// on is only an error when someone asked for it (DOCKER_HOST, or a socket
+// mounted into the app that turns out unusable for another reason, such as a
+// missing group). When it is just the default path that was picked up
+// because it exists -- a stale socket file, Docker not running on this
+// machine -- Docker is off here: address comes back "" with a note to log,
+// not an error.
+func checkDockerSocket(variable, address string, check func(path string) error) (newAddress, note string, err error) {
+	path, ok := strings.CutPrefix(address, "unix://")
+	if !ok {
+		return address, "", nil
+	}
+	err = check(path)
+	if err != nil && variable == "mounted socket" && docker.NotListening(err) {
+		return "", fmt.Sprintf("container stats are off: %s exists but nothing is listening on it (is Docker running?)", path), nil
+	}
+	return address, "", err
+}
+
 // dockerStatus is what the UI shows about Docker: on (with how it is
 // reached, for the footer), off (nothing configured or mounted, so the
 // "Docker not connected" card explains how to turn it on), or error

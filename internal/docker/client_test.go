@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -403,5 +404,24 @@ func TestTrimLeadingSlash(t *testing.T) {
 		if got := trimLeadingSlash(in); got != want {
 			t.Errorf("trimLeadingSlash(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestNotListening(t *testing.T) {
+	// A stale socket file: the path exists but nothing accepts connections.
+	dir := t.TempDir()
+	path := dir + "/docker.sock"
+	l, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Leave the socket file behind when closing, as a crashed Docker would.
+	l.(*net.UnixListener).SetUnlinkOnClose(false)
+	_ = l.Close()
+	if err := CheckSocket(path); err == nil || !NotListening(err) {
+		t.Errorf("CheckSocket on a dead socket = %v; NotListening should be true", err)
+	}
+	if NotListening(errors.New("something else")) {
+		t.Error("an unrelated error is not NotListening")
 	}
 }

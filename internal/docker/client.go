@@ -27,6 +27,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -68,6 +69,13 @@ func CheckSocket(path string) error {
 		return fmt.Errorf("cannot connect to the Docker socket %s: %w", path, err)
 	}
 	return conn.Close()
+}
+
+// NotListening reports whether err from CheckSocket means nothing is serving
+// the socket (a stale socket file, Docker not running), as opposed to a
+// problem with the setup such as a missing group.
+func NotListening(err error) bool {
+	return errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, fs.ErrNotExist)
 }
 
 // ValidateHost reports whether address is a Docker API address NewClient can
