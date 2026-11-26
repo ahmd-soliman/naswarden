@@ -41,7 +41,7 @@ Light theme (follows the system by default; the switch in the top bar picks Syst
 
 ### 2b. Disks & Network
 - **Disks tab**: every physical drive with model, capacity, type, pool, current temperature with its 7-day range, live read/write rate (from ZFS counters, pool members) and ZFS error counts. Click a disk for details. Temperature turns amber at 55 °C and red at 60 °C, matching the shipped alert rules.
-- **Updates**: a badge on the Server card when TrueNAS has a newer version (release notes link in the Server panel), and how many catalog apps can be upgraded. Checked at start and every 6 hours, never on each refresh; hidden when TrueNAS cannot reach its update server. NasWarden only shows it and never starts an update. Works with the Readonly Admin role.
+- **Updates**: a badge on the Server card when TrueNAS has a newer version (release notes link in the Server panel), and how many catalog apps have a newer version of their software (updates that only change the catalog packaging are not counted). Checked at start and every 6 hours, never on each refresh; hidden when TrueNAS cannot reach its update server. NasWarden only shows it and never starts an update. Works with the Readonly Admin role.
 - **Network**: total live throughput on the Server card, and per-interface received/sent rates (plus link utilisation for physical interfaces) in the Server panel.
 - SMART health is not shown: TrueNAS 25.10 removed SMART from its API.
 

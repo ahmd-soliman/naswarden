@@ -15,7 +15,18 @@ const updateStatusUpToDate = `{"code":"NORMAL","status":{"current_version":{"tra
 // seen on a real box.
 const updateStatusAvailable = `{"code":"NORMAL","status":{"current_version":{"train":"TrueNAS-SCALE-Goldeye"},"new_version":{"version":"25.10.8","manifest":{"changelog":"x"},"release_notes":"notes","release_notes_url":"https://www.truenas.com/docs/scale/25.10/gettingstarted/scalereleasenotes/"}},"error":null,"update_download_progress":null}`
 
-const appsJSON = `[{"name":"naswarden","upgrade_available":true},{"name":"plex","upgrade_available":false},{"name":"nextcloud","upgrade_available":true}]`
+// Apps as app.query returns them with the select NasWarden uses. naswarden has
+// only a chart update (same app version); nextcloud and plex have real ones.
+const appsJSON = `[
+ {"name":"naswarden","upgrade_available":true,"metadata":{"app_version":"1.1.1","train":"community"}},
+ {"name":"plex","upgrade_available":false,"metadata":{"app_version":"1.41","train":"community"}},
+ {"name":"nextcloud","upgrade_available":true,"metadata":{"app_version":"30.0.1","train":"stable"}},
+ {"name":"jellyfin","upgrade_available":true,"metadata":{"app_version":"10.9","train":"community"}}]`
+
+const appsLatestJSON = `[
+ {"name":"naswarden","train":"community","latest_app_version":"1.1.1"},
+ {"name":"nextcloud","train":"stable","latest_app_version":"30.0.2"},
+ {"name":"jellyfin","train":"community","latest_app_version":"10.10"}]`
 
 func TestCheckUpdatesUpToDate(t *testing.T) {
 	c := methodServer(t, map[string]string{"update.status": updateStatusUpToDate, "app.query": `[{"name":"a","upgrade_available":false}]`})
@@ -29,13 +40,14 @@ func TestCheckUpdatesUpToDate(t *testing.T) {
 }
 
 func TestCheckUpdatesAvailableAndApps(t *testing.T) {
-	c := methodServer(t, map[string]string{"update.status": updateStatusAvailable, "app.query": appsJSON})
+	c := methodServer(t, map[string]string{"update.status": updateStatusAvailable, "app.query": appsJSON, "app.latest": appsLatestJSON})
 	info, err := checkUpdates(context.Background(), c, time.Unix(1, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
+	// naswarden's update is chart-only (1.1.1 -> 1.1.1) and is not counted.
 	if !info.Available || info.Version != "25.10.8" || info.AppsWithUpdates != 2 {
-		t.Errorf("info = %+v, want 25.10.8 and 2 apps", info)
+		t.Errorf("info = %+v, want 25.10.8 and 2 apps (nextcloud, jellyfin; not the chart-only naswarden)", info)
 	}
 	if info.ReleaseNotesURL == "" {
 		t.Error("release notes link was dropped")
@@ -136,5 +148,37 @@ func TestUpdateCheckerCachesAndKeepsLastGoodOnFailure(t *testing.T) {
 	wait()
 	if calls.Load() != 3 {
 		t.Errorf("calls = %d, want a retry after the short interval", calls.Load())
+	}
+}
+
+func TestAppsWithUpdatesIgnoresChartOnlyUpdates(t *testing.T) {
+	// The case from a real box: TrueNAS flags naswarden (chart 1.0.2 -> 1.0.3)
+	// but the application stays at 1.1.1.
+	c := methodServer(t, map[string]string{
+		"app.query":  `[{"name":"naswarden","upgrade_available":true,"metadata":{"app_version":"1.1.1","train":"community"}}]`,
+		"app.latest": `[{"name":"naswarden","train":"community","latest_app_version":"1.1.1"}]`,
+	})
+	if n := appsWithUpdates(context.Background(), c); n != 0 {
+		t.Errorf("apps with updates = %d, want 0 for a chart-only update", n)
+	}
+}
+
+func TestAppsWithUpdatesCountsFlaggedAppsWhenTheCatalogLookupFails(t *testing.T) {
+	// app.latest not scripted: fall back to what TrueNAS itself says.
+	c := methodServer(t, map[string]string{
+		"app.query": `[{"name":"naswarden","upgrade_available":true,"metadata":{"app_version":"1.1.1","train":"community"}},{"name":"plex","upgrade_available":false,"metadata":{"app_version":"1","train":"community"}}]`,
+	})
+	if n := appsWithUpdates(context.Background(), c); n != 1 {
+		t.Errorf("apps with updates = %d, want 1 (flagged, catalog unknown)", n)
+	}
+}
+
+func TestAppsWithUpdatesIsZeroWhenNothingIsFlagged(t *testing.T) {
+	// No app.latest call is needed (and none is scripted) when nothing is flagged.
+	c := methodServer(t, map[string]string{
+		"app.query": `[{"name":"plex","upgrade_available":false,"metadata":{"app_version":"1","train":"community"}}]`,
+	})
+	if n := appsWithUpdates(context.Background(), c); n != 0 {
+		t.Errorf("apps with updates = %d, want 0", n)
 	}
 }

@@ -26,8 +26,8 @@ type UpdateInfo struct {
 	Available       bool   `json:"available"`
 	Version         string `json:"version,omitempty"`
 	ReleaseNotesURL string `json:"release_notes_url,omitempty"`
-	// Catalog apps with a newer version. Docker containers have no such
-	// field and are not counted.
+	// Catalog apps with a newer version of the software. Chart-only updates
+	// (same app version, new packaging) and Docker containers are not counted.
 	AppsWithUpdates int `json:"apps_with_updates"`
 	// When TrueNAS was last asked, unix seconds.
 	CheckedAt int64 `json:"checked_at"`
@@ -84,24 +84,76 @@ func safeURL(u string) string {
 	return ""
 }
 
+// appsWithUpdates counts catalog apps that have a newer version of the
+// software itself. TrueNAS also flags an app (upgrade_available) when only its
+// catalog packaging changed -- same application version, newer chart -- which
+// is noise on a dashboard, so those are left out; TrueNAS still lists them in
+// its own UI. app.query gives the installed application version, app.latest
+// the newest one in the catalog. When the catalog lookup fails, an app TrueNAS
+// flags is counted rather than hidden.
 func appsWithUpdates(ctx context.Context, c *Client) int {
-	raw, err := c.Call(ctx, "app.query", []any{[]any{}, map[string]any{"select": []string{"name", "upgrade_available"}}})
+	raw, err := c.Call(ctx, "app.query", []any{[]any{}, map[string]any{"select": []string{"name", "upgrade_available", "metadata.app_version", "metadata.train"}}})
 	if err != nil {
 		return 0 // no catalog apps, or not allowed: not worth an error
 	}
 	var apps []struct {
-		Upgrade bool `json:"upgrade_available"`
+		Name     string `json:"name"`
+		Upgrade  bool   `json:"upgrade_available"`
+		Metadata struct {
+			AppVersion string `json:"app_version"`
+			Train      string `json:"train"`
+		} `json:"metadata"`
 	}
 	if json.Unmarshal(raw, &apps) != nil {
 		return 0
 	}
-	n := 0
+	var flagged []string
 	for _, a := range apps {
 		if a.Upgrade {
-			n++
+			flagged = append(flagged, a.Name)
 		}
 	}
+	if len(flagged) == 0 {
+		return 0
+	}
+
+	latest := latestAppVersions(ctx, c, flagged)
+	n := 0
+	for _, a := range apps {
+		if !a.Upgrade {
+			continue
+		}
+		newest, known := latest[a.Name+"\x00"+a.Metadata.Train]
+		if known && newest == a.Metadata.AppVersion {
+			continue // chart-only update: same software
+		}
+		n++
+	}
 	return n
+}
+
+// latestAppVersions maps "name\x00train" to the newest application version in
+// the catalog. Empty when the lookup fails.
+func latestAppVersions(ctx context.Context, c *Client, names []string) map[string]string {
+	out := map[string]string{}
+	raw, err := c.Call(ctx, "app.latest", []any{[]any{[]any{"name", "in", names}}, map[string]any{"select": []string{"name", "train", "latest_app_version"}}})
+	if err != nil {
+		return out
+	}
+	var rows []struct {
+		Name    string `json:"name"`
+		Train   string `json:"train"`
+		Version string `json:"latest_app_version"`
+	}
+	if json.Unmarshal(raw, &rows) != nil {
+		return out
+	}
+	for _, r := range rows {
+		if r.Version != "" {
+			out[r.Name+"\x00"+r.Train] = r.Version
+		}
+	}
+	return out
 }
 
 // UpdateChecker caches the update answer. update.status asks TrueNAS's update
