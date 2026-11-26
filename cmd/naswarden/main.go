@@ -34,7 +34,14 @@ func main() {
 		slog.Error("TRUENAS_HOST and TRUENAS_API_KEY must both be set")
 		os.Exit(1)
 	}
-	useTLS := os.Getenv("TRUENAS_TLS") == "true"
+	host, useTLS, hostWarnings, err := truenasAddress(host, os.Getenv("TRUENAS_TLS"))
+	if err != nil {
+		slog.Error("invalid TrueNAS address", "err", err)
+		os.Exit(1)
+	}
+	for _, w := range hostWarnings {
+		slog.Warn("TRUENAS_HOST is not plain host:port", "note", w)
+	}
 	insecureTLS := os.Getenv("TRUENAS_INSECURE_TLS") == "true"
 	port := os.Getenv("PORT")
 	if port == "" {
