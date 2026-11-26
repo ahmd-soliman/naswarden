@@ -31,6 +31,11 @@ export interface Pool {
   size: number
   allocated: number
   free: number
+  // Usable space from the pool's root dataset (what files can use). Absent when
+  // the backend could not read it; size/allocated above are the zpool's raw figures.
+  usable_size?: number
+  usable_used?: number
+  usable_available?: number
   scan: Scan | null
   fragmentation: string
   vdevs: Vdev[]

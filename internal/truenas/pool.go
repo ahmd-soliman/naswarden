@@ -10,16 +10,23 @@ import (
 // Field names/shape confirmed directly against a live TrueNAS SCALE
 // 25.10.7 box via `midclt call pool.query` -- not guessed from docs.
 type Pool struct {
-	Name          string `json:"name"`
-	Status        string `json:"status"` // ONLINE / DEGRADED / FAULTED / ...
-	Healthy       bool   `json:"healthy"`
-	Warning       bool   `json:"warning"`
-	Size          int64  `json:"size"`
-	Allocated     int64  `json:"allocated"`
-	Free          int64  `json:"free"`
-	Scan          *Scan  `json:"scan"`
-	Fragmentation string `json:"fragmentation"` // e.g. "31" (percent, as a string on the wire)
-	Vdevs         []Vdev `json:"vdevs"`
+	Name      string `json:"name"`
+	Status    string `json:"status"` // ONLINE / DEGRADED / FAULTED / ...
+	Healthy   bool   `json:"healthy"`
+	Warning   bool   `json:"warning"`
+	Size      int64  `json:"size"`
+	Allocated int64  `json:"allocated"`
+	Free      int64  `json:"free"`
+	// Usable space, from the pool's root dataset (see ApplyUsable): what
+	// files can actually use, without RAIDZ parity and ZFS's slop reservation.
+	// Absent (0) when the root dataset could not be read; Size/Allocated above
+	// are the zpool's raw figures.
+	UsableSize      int64  `json:"usable_size,omitempty"`
+	UsableUsed      int64  `json:"usable_used,omitempty"`
+	UsableAvailable int64  `json:"usable_available,omitempty"`
+	Scan            *Scan  `json:"scan"`
+	Fragmentation   string `json:"fragmentation"` // e.g. "31" (percent, as a string on the wire)
+	Vdevs           []Vdev `json:"vdevs"`
 }
 
 type Scan struct {

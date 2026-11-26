@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Pool, ReplicationTask } from '../composables/usePoolSocket'
+import { poolCapacity } from '../composables/poolCapacity'
 
 const props = defineProps<{
   pool: Pool
@@ -20,10 +21,8 @@ const statusColor = computed(() => {
   return 'green'
 })
 
-const usedPercent = computed(() => {
-  if (props.pool.size === 0) return 0
-  return Math.round((props.pool.allocated / props.pool.size) * 100)
-})
+const capacity = computed(() => poolCapacity(props.pool))
+const usedPercent = computed(() => capacity.value.percent)
 
 function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
@@ -66,7 +65,7 @@ function formatRelativeTime(ts: number): string {
         <div class="bar__fill" :class="`badge--${statusColor}`" :style="{ width: usedPercent + '%' }" />
       </div>
       <span class="pool-card__usage-text">
-        {{ formatBytes(pool.allocated) }} / {{ formatBytes(pool.size) }} ({{ usedPercent }}%)
+        {{ formatBytes(capacity.used) }} / {{ formatBytes(capacity.total) }} ({{ usedPercent }}%)
       </span>
     </div>
 

@@ -32,6 +32,7 @@ Light theme (follows the system by default; the switch in the top bar picks Syst
 ### 1. ZFS Quota Utilization & Pool Health
 - **Dataset Quota Tracking**: Discovers all datasets with `quota` or `refquota` configured. Displays live space consumed vs. limit, quota source, compression algorithm, ratio, record size, and space held by snapshots.
 - **Visual Thresholds**: Color-coded utilization bars (green `< 70%`, yellow `70%–89%`, red `≥ 90%`).
+- **Usable Capacity**: The pool card shows the space files can actually use (the root dataset's used + available, as in `zfs list`), not the zpool's raw size, which counts RAIDZ parity and the ZFS reserve. The raw size stays in the pool's detail panel.
 - **Pool Topology & Scans**: Tracks pool status (`ONLINE`, `DEGRADED`, `FAULTED`), vdev topology (mirrors, bare disks, stripes), per-disk read/write/checksum errors, fragmentation, and scrub/resilver progress.
 
 ### 2. Host Resources & ZFS ARC Breakdown
@@ -148,7 +149,9 @@ NasWarden exposes Prometheus gauges at `/metrics` for integration with Prometheu
 | `naswarden_dataset_quota_used_bytes{dataset}` | Gauge | Bytes used on a ZFS dataset with a quota |
 | `naswarden_dataset_quota_bytes{dataset}` | Gauge | Configured quota/refquota limit in bytes |
 | `naswarden_pool_allocated_bytes{pool}` | Gauge | Allocated storage space in bytes |
-| `naswarden_pool_size_bytes{pool}` | Gauge | Total storage pool capacity in bytes |
+| `naswarden_pool_size_bytes{pool}` | Gauge | Raw zpool size in bytes (includes RAIDZ parity and the ZFS reserve) |
+| `naswarden_pool_usable_bytes{pool}` | Gauge | Usable capacity in bytes: used plus available of the pool's root dataset, what `zfs list` shows. Absent for a pool whose root dataset could not be read |
+| `naswarden_pool_available_bytes{pool}` | Gauge | Bytes still available for files in the pool (root dataset). Absent like the one above |
 | `naswarden_pool_healthy{pool}` | Gauge | `1` if pool is ONLINE and healthy, `0` if degraded/faulted |
 | `naswarden_instance_up{instance, manager, type}` | Gauge | `1` if VM or LXC container is running, `0` otherwise |
 | `naswarden_container_up{container, stack}` | Gauge | `1` if Docker container is running, `0` otherwise |
