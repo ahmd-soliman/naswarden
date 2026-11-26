@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -65,8 +64,13 @@ func main() {
 	if warning != "" {
 		slog.Warn(warning, "docker_proxy_url", os.Getenv("DOCKER_PROXY_URL"), "docker_host", os.Getenv("DOCKER_HOST"))
 	}
-	if path, ok := strings.CutPrefix(dockerHost, "unix://"); ok && err == nil {
-		err = docker.CheckSocket(path)
+	if err == nil {
+		var note string
+		dockerHost, note, err = checkDockerSocket(dockerVar, dockerHost, docker.CheckSocket)
+		if note != "" {
+			slog.Warn(note)
+			dockerVar = ""
+		}
 	}
 	switch {
 	case err != nil:

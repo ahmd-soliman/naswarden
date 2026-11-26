@@ -2,7 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -80,5 +82,46 @@ func TestNewDockerStatus(t *testing.T) {
 		if got := newDockerStatus(tt.variable, tt.address, tt.err); got != tt.want {
 			t.Errorf("newDockerStatus(%q, %q, %v) = %+v, want %+v", tt.variable, tt.address, tt.err, got, tt.want)
 		}
+	}
+}
+
+func TestCheckDockerSocket(t *testing.T) {
+	refused := fmt.Errorf("cannot connect to the Docker socket /var/run/docker.sock: %w", syscall.ECONNREFUSED)
+	denied := errors.New("no permission to use the Docker socket /var/run/docker.sock: run naswarden with the socket's group")
+	ok := func(string) error { return nil }
+	fail := func(err error) func(string) error { return func(string) error { return err } }
+
+	tests := []struct {
+		name, variable, address string
+		check                   func(string) error
+		wantAddr                string
+		wantNote, wantErr       bool
+	}{
+		{name: "usable default socket stays on", variable: "mounted socket", address: "unix:///var/run/docker.sock", check: ok,
+			wantAddr: "unix:///var/run/docker.sock"},
+		{name: "default socket nothing listens on: Docker off, a note, no error", variable: "mounted socket", address: "unix:///var/run/docker.sock", check: fail(refused),
+			wantAddr: "", wantNote: true},
+		{name: "default socket without permission is still an error", variable: "mounted socket", address: "unix:///var/run/docker.sock", check: fail(denied),
+			wantAddr: "unix:///var/run/docker.sock", wantErr: true},
+		{name: "a socket the user asked for that nothing listens on is an error", variable: "DOCKER_HOST", address: "unix:///var/run/docker.sock", check: fail(refused),
+			wantAddr: "unix:///var/run/docker.sock", wantErr: true},
+		{name: "a network address is not probed here", variable: "DOCKER_PROXY_URL", address: "http://docker-proxy:2375",
+			check: func(string) error { t.Error("must not probe a non-socket address"); return nil }, wantAddr: "http://docker-proxy:2375"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			addr, note, err := checkDockerSocket(tt.variable, tt.address, tt.check)
+			if addr != tt.wantAddr || (note != "") != tt.wantNote || (err != nil) != tt.wantErr {
+				t.Errorf("got addr=%q note=%q err=%v; want addr=%q note=%v err=%v", addr, note, err, tt.wantAddr, tt.wantNote, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestUnreachableDefaultSocketShowsDockerOffNotError(t *testing.T) {
+	// What the UI gets in that case: the "Docker not connected" card, no error.
+	got := newDockerStatus("", "", nil)
+	if got != (dockerStatus{State: "off"}) {
+		t.Errorf("status = %+v, want off", got)
 	}
 }
