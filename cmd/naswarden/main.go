@@ -40,7 +40,7 @@ func main() {
 		os.Exit(1)
 	}
 	for _, w := range hostWarnings {
-		slog.Warn(w)
+		slog.Warn("TRUENAS_HOST is not plain host:port", "note", w)
 	}
 	insecureTLS := os.Getenv("TRUENAS_INSECURE_TLS") == "true"
 	port := os.Getenv("PORT")
