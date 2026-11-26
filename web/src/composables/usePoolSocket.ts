@@ -142,6 +142,15 @@ export interface ServerInfo {
   cpu_temp_c: number
   net_rx_kbps?: number // total over physical interfaces, kilobits/s
   net_tx_kbps?: number
+  update?: UpdateInfo // absent until TrueNAS has been asked, or when it cannot reach its update server
+}
+
+export interface UpdateInfo {
+  available: boolean
+  version?: string
+  release_notes_url?: string
+  apps_with_updates: number // catalog apps only; Docker containers are not counted
+  checked_at: number // unix seconds
 }
 
 export interface VM {

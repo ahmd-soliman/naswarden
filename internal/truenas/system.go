@@ -47,6 +47,9 @@ type ServerInfo struct {
 	Cores         int64   `json:"cores"`
 	PhysicalCores int64   `json:"physical_cores"`
 	CPUTempC      float64 `json:"cpu_temp_c"`
+	// Whether TrueNAS has an update waiting; absent until the first check
+	// has succeeded (and when TrueNAS cannot reach its update server).
+	Update *UpdateInfo `json:"update,omitempty"`
 }
 
 // Interface is a network interface's current link state and addresses --

@@ -110,7 +110,9 @@ func newRefreshRig(t *testing.T) *refreshRig {
 	return &refreshRig{tn: tn, client: client, hub: hub, cache: &lastGood{}, health: newHealth(time.Minute), rates: truenas.NewDiskRates(), conn: conn}
 }
 
-func (r *refreshRig) run() { refresh(r.client, nil, nil, r.hub, r.cache, r.health, r.rates) }
+func (r *refreshRig) run() {
+	refresh(r.client, nil, nil, r.hub, r.cache, r.health, r.rates, truenas.NewUpdateChecker(r.client))
+}
 
 // next returns the next message the browser would receive.
 func (r *refreshRig) next(t *testing.T) map[string]any {
