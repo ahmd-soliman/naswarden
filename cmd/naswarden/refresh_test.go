@@ -229,12 +229,34 @@ func TestRefreshSendsServicesAndSharesAndKeepsThemWhenTheCallFails(t *testing.T)
 	r.run()
 	second := r.next(t)
 	if svc, _ := second["services"].([]any); len(svc) != 1 {
-		t.Errorf("services = %v, want the previous list kept", second["services"])
+		t.Errorf("services = %v, want the list still served", second["services"])
 	}
 	if sh, _ := second["shares"].([]any); len(sh) != 1 {
 		t.Errorf("shares = %v, want the previous list kept", second["shares"])
 	}
 	stale, _ := second["stale_sources"].([]any)
+	if len(stale) != 1 || stale[0] != "shares" {
+		t.Errorf("stale_sources = %v, want [shares] only: the services call worked", stale)
+	}
+}
+
+func TestRefreshServicesFailureKeepsSharesFresh(t *testing.T) {
+	r := newRefreshRig(t)
+	r.tn.set("service.query", `[{"service":"nfs","enable":true,"state":"RUNNING"}]`)
+	r.run()
+	r.next(t)
+
+	r.tn.fail("service.query", true)
+	r.tn.set("sharing.smb.query", `[{"name":"new","path":"/mnt/tank/new","enabled":true}]`)
+	r.run()
+	msg := r.next(t)
+	if svc, _ := msg["services"].([]any); len(svc) != 1 {
+		t.Errorf("services = %v, want the previous list kept", msg["services"])
+	}
+	if sh, _ := msg["shares"].([]any); len(sh) != 1 {
+		t.Errorf("shares = %v, want the fresh list", msg["shares"])
+	}
+	stale, _ := msg["stale_sources"].([]any)
 	if len(stale) != 1 || stale[0] != "services" {
 		t.Errorf("stale_sources = %v, want [services]", stale)
 	}

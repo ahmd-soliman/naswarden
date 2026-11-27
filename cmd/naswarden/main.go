@@ -281,22 +281,27 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	}
 	metrics.UpdateReplications(replications)
 
-	// Services and their SMB/NFS shares: one source, so a failure keeps both
-	// lists and flags "services" stale. Share names and paths go to the state
-	// message only, not to metrics or logs.
-	services, shares := cache.services, cache.shares
-	if freshSvc, err := truenas.ListServices(ctx, client); err != nil {
+	// Services and their SMB/NFS shares are separate sources: a failing share
+	// query must not freeze the service states. Share names and paths go to
+	// the state message only, not to metrics or logs.
+	services := cache.services
+	if fresh, err := truenas.ListServices(ctx, client); err != nil {
 		slog.Error("failed to refresh truenas services", "err", err)
 		stale = append(stale, "services")
-	} else if freshShares, err := truenas.ListShares(ctx, client); err != nil {
-		slog.Error("failed to refresh truenas shares", "err", err)
-		stale = append(stale, "services")
 	} else {
-		services, shares = freshSvc, freshShares
-		cache.services, cache.shares = freshSvc, freshShares
+		services = fresh
+		cache.services = fresh
 	}
 	if services == nil {
 		services = []truenas.Service{}
+	}
+	shares := cache.shares
+	if fresh, err := truenas.ListShares(ctx, client); err != nil {
+		slog.Error("failed to refresh truenas shares", "err", err)
+		stale = append(stale, "shares")
+	} else {
+		shares = fresh
+		cache.shares = fresh
 	}
 	if shares == nil {
 		shares = []truenas.Share{}
