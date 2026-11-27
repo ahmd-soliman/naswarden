@@ -8,6 +8,7 @@ package metrics
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -80,6 +81,11 @@ var (
 		Name: "naswarden_disk_errors",
 		Help: "ZFS error count of a pool member disk since its pool was imported. type is read, write or checksum.",
 	}, []string{"pool", "disk", "type"})
+
+	vdevErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_vdev_errors",
+		Help: "ZFS error count of a pool's mirror or RAIDZ vdev itself (not its disks) since the pool was imported. type is read, write or checksum. A bare-disk vdev is left out: naswarden_disk_errors has it.",
+	}, []string{"pool", "vdev", "type"})
 
 	diskReadRate = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "naswarden_disk_read_bytes_per_second",
@@ -217,6 +223,7 @@ var (
 	poolScanPctSeries     = newTracked(poolScanProgress)
 	poolLastScrubSeries   = newTracked(poolLastScrub)
 	diskErrorSeries       = newTracked(diskErrors)
+	vdevErrorSeries       = newTracked(vdevErrors)
 	diskReadRateSeries    = newTracked(diskReadRate)
 	diskWriteRateSeries   = newTracked(diskWriteRate)
 	datasetSnapSeries     = newTracked(datasetSnapshotBytes)
@@ -247,6 +254,7 @@ func init() {
 		poolScanProgress,
 		poolLastScrub,
 		diskErrors,
+		vdevErrors,
 		diskReadRate,
 		diskWriteRate,
 		datasetSnapshotBytes,
@@ -307,6 +315,7 @@ func UpdatePools(pools []truenas.Pool) {
 	setScanRun, doneScanRun := poolScanRunSeries.begin()
 	setScanPct, doneScanPct := poolScanPctSeries.begin()
 	setScrub, doneScrub := poolLastScrubSeries.begin()
+	setVdevErr, doneVdevErr := vdevErrorSeries.begin()
 	for _, p := range pools {
 		setAlloc(float64(p.Allocated), p.Name)
 		setSize(float64(p.Size), p.Name)
@@ -326,7 +335,8 @@ func UpdatePools(pools []truenas.Pool) {
 			if running {
 				run = 1.0
 				if sc.Percentage != nil {
-					setScanPct(*sc.Percentage, p.Name, fn)
+					// A real finished scrub reported 100.0004, so keep it in range.
+					setScanPct(math.Min(*sc.Percentage, 100), p.Name, fn)
 				}
 			}
 			setScanRun(run, p.Name, fn)
@@ -336,6 +346,13 @@ func UpdatePools(pools []truenas.Pool) {
 		}
 
 		for _, vd := range p.Vdevs {
+			// A group vdev (mirror, RAIDZ) has errors of its own; a bare disk
+			// is its own vdev and is already exported per disk.
+			if vd.Errors != nil && len(vd.Children) > 0 && vd.Type != "DISK" {
+				setVdevErr(float64(vd.Errors.Read), p.Name, vd.Name, "read")
+				setVdevErr(float64(vd.Errors.Write), p.Name, vd.Name, "write")
+				setVdevErr(float64(vd.Errors.Checksum), p.Name, vd.Name, "checksum")
+			}
 			for _, child := range vd.Children {
 				if child.Temperature != nil {
 					setTemp(*child.Temperature, p.Name, child.Disk)
@@ -351,6 +368,7 @@ func UpdatePools(pools []truenas.Pool) {
 	doneScanRun()
 	doneScanPct()
 	doneScrub()
+	doneVdevErr()
 }
 
 // UpdateDisks exports the ZFS error counts and I/O rates of pool member

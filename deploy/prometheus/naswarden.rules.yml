@@ -91,6 +91,12 @@ groups:
         annotations:
           summary: "Disk {{ $labels.disk }} ({{ $labels.pool }}) logged {{ $value }} new {{ $labels.type }} error(s) in the last hour"
 
+      - alert: ZFSVdevErrors
+        expr: increase(naswarden_vdev_errors[1h]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Vdev {{ $labels.vdev }} ({{ $labels.pool }}) logged {{ $value }} new {{ $labels.type }} error(s) in the last hour"
+
       - alert: ZFSPoolFragmented
         expr: naswarden_pool_fragmentation_percent > 80
         for: 1h

@@ -1206,6 +1206,16 @@
           "legendFormat": "{{pool}} / {{disk}} ({{type}})",
           "refId": "A",
           "editorMode": "code"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (pool, vdev, type) (increase(naswarden_vdev_errors[1h])) > 0",
+          "legendFormat": "{{pool}} / {{vdev}} vdev ({{type}})",
+          "refId": "B",
+          "editorMode": "code"
         }
       ],
       "fieldConfig": {

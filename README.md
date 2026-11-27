@@ -160,6 +160,7 @@ NasWarden exposes Prometheus gauges at `/metrics` for integration with Prometheu
 | `naswarden_truenas_alert_count{level}` | Gauge | Active, un-dismissed TrueNAS alerts by severity |
 | `naswarden_disk_temperature_celsius{pool, disk}` | Gauge | Current drive temperature (active drives only) |
 | `naswarden_disk_errors{pool, disk, type}` | Gauge | ZFS read / write / checksum error count of a pool member disk since its pool was imported |
+| `naswarden_vdev_errors{pool, vdev, type}` | Gauge | ZFS read / write / checksum error count of a mirror or RAIDZ vdev itself (not its disks) since its pool was imported. Absent for a bare-disk vdev (see `naswarden_disk_errors`) |
 | `naswarden_disk_read_bytes_per_second{pool, disk}` | Gauge | Read rate of a pool member disk between refreshes. Absent until two refreshes have seen the disk |
 | `naswarden_disk_write_bytes_per_second{pool, disk}` | Gauge | Write rate, like the one above |
 | `naswarden_pool_fragmentation_percent{pool}` | Gauge | Free-space fragmentation of the pool. Absent when TrueNAS reports none |
