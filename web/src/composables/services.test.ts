@@ -17,6 +17,7 @@ describe('services', () => {
     expect(serviceTone(svc({ state: 'STOPPED', problem: true }))).toBe('crit')
     expect(serviceTone(svc({ state: 'STOPPED', enable: false }))).toBe('gray')
     expect(serviceStateText(svc({ state: 'STOPPED', problem: true }))).toMatch(/start on boot/)
+    expect(serviceStateText(svc({ state: 'STOPPED', enable: false, problem: true }))).toMatch(/has shares/)
     expect(serviceStateText(svc({ enable: false }))).toMatch(/not set to start/)
   })
   it('picks the shares of one service', () => {

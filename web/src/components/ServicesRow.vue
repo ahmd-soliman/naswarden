@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Service } from '../composables/usePoolSocket'
-import { serviceLabel, serviceTone } from '../composables/services'
+import { serviceLabel, serviceStateText, serviceTone } from '../composables/services'
 
 defineProps<{ services: Service[]; active?: string }>()
 defineEmits<{ select: [name: string] }>()
@@ -14,7 +14,7 @@ defineEmits<{ select: [name: string] }>()
         class="chip"
         :class="[`chip--${serviceTone(s)}`, { 'chip--active': active === s.name }]"
         :aria-pressed="active === s.name"
-        :title="s.problem ? `${serviceLabel(s.name)} is stopped but set to start on boot` : undefined"
+        :title="s.problem ? `${serviceLabel(s.name)}: ${serviceStateText(s).toLowerCase()}` : undefined"
         @click="$emit('select', s.name)"
       >
         <span class="chip__dot" aria-hidden="true" />

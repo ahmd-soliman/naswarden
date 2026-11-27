@@ -30,7 +30,7 @@ export function serviceTone(s: Service): ServiceTone {
 }
 
 export function serviceStateText(s: Service): string {
-  if (s.problem) return 'Stopped, but set to start on boot'
+  if (s.problem) return s.enable ? 'Stopped, but set to start on boot' : 'Stopped, but it has shares'
   if (s.state === 'RUNNING') return s.enable ? 'Running' : 'Running (not set to start on boot)'
   return s.state ? s.state.charAt(0) + s.state.slice(1).toLowerCase() : 'Unknown'
 }
