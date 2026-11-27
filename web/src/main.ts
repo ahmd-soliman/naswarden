@@ -1,6 +1,7 @@
 import { createApp, h, ref } from 'vue'
 import './style.css'
 import App from './App.vue'
+import './modern.css'
 import ErrorBoundary from './components/ErrorBoundary.vue'
 
 // Last line of defence: an error outside the sections' own boundaries

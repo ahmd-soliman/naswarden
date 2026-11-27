@@ -23,12 +23,23 @@ const emit = defineEmits<{ select: [row: T] }>()
 const sort = ref<{ key: string; dir: 'asc' | 'desc' } | null>(props.defaultSort ?? null)
 
 function toggleSort(key: string) {
-  const s = sort.value
+  const s = activeSort.value
   sort.value = s && s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
 }
 
-const sorted = computed(() => {
+// The sort in force. A column can disappear (App.vue hides some while the detail
+// panel is docked); the rows then use the default sort instead of silently going
+// unsorted, and the chosen sort comes back with its column.
+const activeSort = computed(() => {
+  const present = (k: string) => props.columns.some((c) => c.key === k)
   const s = sort.value
+  if (s && present(s.key)) return s
+  const d = props.defaultSort
+  return d && present(d.key) ? d : null
+})
+
+const sorted = computed(() => {
+  const s = activeSort.value
   const col = s && props.columns.find((c) => c.key === s.key)
   if (!s || !col) return props.rows
   const sign = s.dir === 'asc' ? 1 : -1
@@ -52,7 +63,7 @@ function showFullText(e: MouseEvent) {
 }
 
 const ariaSort = (key: string) =>
-  sort.value?.key === key ? (sort.value.dir === 'asc' ? 'ascending' : 'descending') : 'none'
+  activeSort.value?.key === key ? (activeSort.value.dir === 'asc' ? 'ascending' : 'descending') : 'none'
 </script>
 
 <template>
@@ -64,7 +75,7 @@ const ariaSort = (key: string) =>
           <th v-for="col in columns" :key="col.key" scope="col" :aria-sort="ariaSort(col.key)" :class="{ 'lt__num': col.align === 'right' }">
             <button type="button" class="lt__sort" @click="toggleSort(col.key)">
               {{ col.label }}
-              <span class="lt__arrow" aria-hidden="true">{{ sort?.key === col.key ? (sort.dir === 'asc' ? '▲' : '▼') : '' }}</span>
+              <span class="lt__arrow" aria-hidden="true">{{ activeSort?.key === col.key ? (activeSort.dir === 'asc' ? '▲' : '▼') : '' }}</span>
             </button>
           </th>
         </tr>

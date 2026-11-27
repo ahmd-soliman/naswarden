@@ -103,7 +103,10 @@ function formatUptime(seconds: number): string {
           class="server-card__value"
           :aria-label="`Network: ${formatBitrate(server.net_rx_kbps)} received, ${formatBitrate(server.net_tx_kbps)} sent`"
         >
-          <span aria-hidden="true">&darr; {{ formatBitrate(server.net_rx_kbps) }} &nbsp;&uarr; {{ formatBitrate(server.net_tx_kbps) }}</span>
+          <span class="server-card__net" aria-hidden="true">
+            <span>&darr; {{ formatBitrate(server.net_rx_kbps) }}</span>
+            <span>&uarr; {{ formatBitrate(server.net_tx_kbps) }}</span>
+          </span>
         </span>
       </div>
       <div class="server-card__stat">

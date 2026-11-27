@@ -61,7 +61,6 @@ function formatBytes(bytes: number): string {
   background: var(--card-bg);
   border: 1px solid var(--border);
   --accent: var(--dataset);
-  border-top: 3px solid var(--accent);
   border-radius: 10px;
   padding: 0.75rem 1rem;
   display: flex;
