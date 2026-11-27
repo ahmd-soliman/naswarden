@@ -202,7 +202,7 @@ naswarden_container_up{stack="media", container="jellyfin"} == 0
 
 #### 6. Grafana dashboard
 
-`deploy/grafana/naswarden.dashboard.json` is a ready-made dashboard (uid `naswarden-overview`, 21 panels): health at a glance, pool and dataset usage, capacity trends, disk temperatures, TrueNAS alerts, replication status, containers that are down and per-source freshness. It uses a `datasource` variable, so it works with any Prometheus datasource that scrapes NasWarden.
+`deploy/grafana/naswarden.dashboard.json` is a ready-made dashboard (uid `naswarden-overview`, 24 panels): health at a glance, pool and dataset usage, capacity trends, disk temperatures, TrueNAS alerts, replication status, containers that are down, TrueNAS services and per-source freshness. It uses a `datasource` variable, so it works with any Prometheus datasource that scrapes NasWarden.
 
 Import it in the UI (**Dashboards -> New -> Import**, then pick your Prometheus datasource), or through the API:
 
