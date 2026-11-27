@@ -306,6 +306,10 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	if shares == nil {
 		shares = []truenas.Share{}
 	}
+	// cache.services holds every service; only the ones worth showing, with
+	// their problem flag, go out. Done after both sources are settled because
+	// a service with enabled shares counts as needed.
+	services = truenas.VisibleServices(services, shares)
 	metrics.UpdateServices(services)
 
 	payload, err := json.Marshal(map[string]any{

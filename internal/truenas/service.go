@@ -9,13 +9,14 @@ import (
 )
 
 // Service is a TrueNAS service (SMB, NFS, SSH, ...) from `service.query`.
-// Only services that are enabled or running are kept: one that is off and
-// not set to start on boot is noise.
+// ListServices returns all of them; VisibleServices drops the ones that are
+// off and not worth showing.
 type Service struct {
 	Name   string `json:"name"`   // middleware name: cifs, nfs, ssh, iscsitarget, ups, ...
 	State  string `json:"state"`  // RUNNING, STOPPED, ...
 	Enable bool   `json:"enable"` // start on boot
-	// Problem: set to start on boot but not running. Computed here so the UI
+	// Problem: not running although it should be: set to start on boot, or (for
+	// SMB and NFS) it has enabled shares. Computed by VisibleServices so the UI
 	// and any other consumer agree on what counts as a problem.
 	Problem bool `json:"problem"`
 }
@@ -53,9 +54,8 @@ type rawShare struct {
 	Locked   bool     `json:"locked"`
 }
 
-// ListServices queries service.query and returns the services that are
-// enabled or running, sorted by name. A TrueNAS without the method yields an
-// empty list, not an error.
+// ListServices queries service.query and returns every service, sorted by
+// name. A TrueNAS without the method yields an empty list, not an error.
 func ListServices(ctx context.Context, c *Client) ([]Service, error) {
 	raw, err := c.Call(ctx, "service.query", []any{})
 	if errors.Is(err, ErrNoMethod) {
@@ -77,18 +77,33 @@ func buildServices(rawList []rawService) []Service {
 		if r.Service == "" {
 			continue
 		}
-		running := r.State == "RUNNING"
-		if !running && !r.Enable {
-			continue // off and not meant to be on
-		}
-		out = append(out, Service{
-			Name:    r.Service,
-			State:   r.State,
-			Enable:  r.Enable,
-			Problem: r.Enable && !running,
-		})
+		out = append(out, Service{Name: r.Service, State: r.State, Enable: r.Enable})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// VisibleServices keeps the services worth showing and sets Problem. A service
+// is kept if it is running, set to start on boot, or has an enabled share (the
+// first thing to check when a share stops working). It is a problem when it
+// should be running -- start on boot, or enabled shares -- and is not.
+func VisibleServices(all []Service, shares []Share) []Service {
+	served := map[string]bool{}
+	for _, sh := range shares {
+		if sh.Enabled {
+			served[sh.Service] = true
+		}
+	}
+	out := make([]Service, 0, len(all))
+	for _, s := range all {
+		running := s.State == "RUNNING"
+		wanted := s.Enable || served[s.Name]
+		if !running && !wanted {
+			continue // off, and nothing needs it
+		}
+		s.Problem = wanted && !running
+		out = append(out, s)
+	}
 	return out
 }
 

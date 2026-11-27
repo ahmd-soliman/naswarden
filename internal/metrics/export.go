@@ -138,7 +138,7 @@ var (
 
 	serviceUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "naswarden_service_up",
-		Help: "1 if the TrueNAS service is running, 0 if not; only for services that are enabled or running.",
+		Help: "1 if the TrueNAS service is running, 0 if not; only for services that are running, set to start on boot, or have enabled shares.",
 	}, []string{"service"})
 
 	lastRefreshSuccess = prometheus.NewGauge(prometheus.GaugeOpts{

@@ -12,13 +12,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func decodeServices(t *testing.T, fixture string) []Service {
+func decodeServices(t *testing.T, fixture string, shares ...Share) []Service {
 	t.Helper()
 	var raw []rawService
 	if err := json.Unmarshal([]byte(fixture), &raw); err != nil {
 		t.Fatal(err)
 	}
-	return buildServices(raw)
+	return VisibleServices(buildServices(raw), shares)
 }
 
 func TestServicesRunningStoppedAndFlagged(t *testing.T) {
@@ -40,6 +40,19 @@ func TestServicesRunningStoppedAndFlagged(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("[%d] = %+v, want %+v", i, got[i], want[i])
 		}
+	}
+}
+
+func TestStoppedServiceWithEnabledSharesIsShownAsAProblem(t *testing.T) {
+	const fixture = `[{"service":"cifs","enable":false,"state":"STOPPED"},{"service":"nfs","enable":false,"state":"STOPPED"}]`
+	got := decodeServices(t, fixture,
+		Share{Service: "cifs", Name: "media", Enabled: true},
+		Share{Service: "nfs", Name: "old", Enabled: false}) // a disabled share needs nothing
+	if len(got) != 1 || got[0].Name != "cifs" || !got[0].Problem {
+		t.Fatalf("want only cifs, flagged: %+v", got)
+	}
+	if got := decodeServices(t, fixture); len(got) != 0 {
+		t.Fatalf("no shares, off and not enabled: want hidden, got %+v", got)
 	}
 }
 
