@@ -244,3 +244,93 @@ func TestPoolUsableMetricsAreExposedOnTheRegistry(t *testing.T) {
 		t.Errorf("%s is not exposed: register it in init()", name)
 	}
 }
+
+func TestUpdateDisksExportsErrorsAndRatesOnlyForMembers(t *testing.T) {
+	rd, wr := 1500.0, 700.0
+	rb := int64(10)
+	UpdateDisks([]truenas.Disk{
+		{Name: "sda", Pool: "tank", ReadBytes: &rb, ReadErrors: 1, WriteErrors: 2, ChecksumErrors: 3, ReadRate: &rd, WriteRate: &wr},
+		{Name: "sdb", Pool: "tank", ReadBytes: &rb}, // first refresh: no rate yet
+		{Name: "sdc"}, // not in a pool
+	})
+	for typ, want := range map[string]float64{"read": 1, "write": 2, "checksum": 3} {
+		if got := gaugeValue(diskErrors.WithLabelValues("tank", "sda", typ)); got != want {
+			t.Errorf("errors{%s} = %v, want %v", typ, got, want)
+		}
+	}
+	if got := gaugeValue(diskReadRate.WithLabelValues("tank", "sda")); got != 1500 {
+		t.Errorf("read rate = %v, want 1500", got)
+	}
+	if n := seriesCount(t, diskReadRate); n != 1 {
+		t.Errorf("%d read-rate series, want 1: a disk without a rate must have none, not 0", n)
+	}
+	if n := seriesCount(t, diskErrors); n != 6 {
+		t.Errorf("%d error series, want 6 (two member disks x three types, none for the non-member)", n)
+	}
+	UpdateDisks(nil)
+	if n := seriesCount(t, diskErrors); n != 0 {
+		t.Errorf("%d error series left after the disks went away", n)
+	}
+}
+
+func TestUpdatePoolsExportsFragmentationAndScans(t *testing.T) {
+	end, pct := int64(1700000000), 41.5
+	UpdatePools([]truenas.Pool{
+		{Name: "tank", Fragmentation: "12", Scan: &truenas.Scan{Function: "SCRUB", State: "FINISHED", EndTime: &end}},
+		{Name: "fast", Fragmentation: "-", Scan: &truenas.Scan{Function: "RESILVER", State: "IN_PROGRESS", Percentage: &pct}},
+		{Name: "boot-pool"}, // never scanned, no fragmentation
+	})
+	if got := gaugeValue(poolFragmentation.WithLabelValues("tank")); got != 12 {
+		t.Errorf("fragmentation = %v, want 12", got)
+	}
+	if n := seriesCount(t, poolFragmentation); n != 1 {
+		t.Errorf("%d fragmentation series, want 1: '-' must not become 0", n)
+	}
+	if got := gaugeValue(poolLastScrub.WithLabelValues("tank")); got != float64(end) {
+		t.Errorf("last scrub = %v, want %v", got, end)
+	}
+	if n := seriesCount(t, poolLastScrub); n != 1 {
+		t.Errorf("%d last-scrub series, want 1: a resilver is not a scrub", n)
+	}
+	if got := gaugeValue(poolScanInProgress.WithLabelValues("fast", "resilver")); got != 1 {
+		t.Errorf("resilver in progress = %v, want 1", got)
+	}
+	if got := gaugeValue(poolScanInProgress.WithLabelValues("tank", "scrub")); got != 0 {
+		t.Errorf("finished scrub in progress = %v, want 0", got)
+	}
+	if got := gaugeValue(poolScanProgress.WithLabelValues("fast", "resilver")); got != 41.5 {
+		t.Errorf("scan progress = %v, want 41.5", got)
+	}
+	if n := seriesCount(t, poolScanProgress); n != 1 {
+		t.Errorf("%d progress series, want 1: only a running scan has one", n)
+	}
+	UpdatePools(nil)
+}
+
+func TestUpdateDatasetsExportsSnapshotSpaceAndRatio(t *testing.T) {
+	UpdateDatasets([]truenas.Dataset{
+		{Name: "tank/a", Used: 1, Quota: 2, UsedBySnapshots: 300, CompressRatio: "1.08x"},
+		{Name: "tank/b", Used: 1, Quota: 2, UsedBySnapshots: 0, CompressRatio: ""},
+	})
+	if got := gaugeValue(datasetSnapshotBytes.WithLabelValues("tank/a")); got != 300 {
+		t.Errorf("snapshot bytes = %v, want 300", got)
+	}
+	if got := gaugeValue(datasetCompressRatio.WithLabelValues("tank/a")); got != 1.08 {
+		t.Errorf("ratio = %v, want 1.08", got)
+	}
+	if n := seriesCount(t, datasetCompressRatio); n != 1 {
+		t.Errorf("%d ratio series, want 1: an unreadable ratio must have none", n)
+	}
+	UpdateDatasets(nil)
+}
+
+func TestUpdateServerExportsVersionInfo(t *testing.T) {
+	UpdateServer(&truenas.ServerInfo{Version: "25.10.1"})
+	if got := gaugeValue(truenasInfo.WithLabelValues("25.10.1")); got != 1 {
+		t.Errorf("info = %v, want 1", got)
+	}
+	UpdateServer(&truenas.ServerInfo{Version: "26.04"})
+	if n := seriesCount(t, truenasInfo); n != 1 {
+		t.Errorf("%d info series after an upgrade, want 1 (the old version must go)", n)
+	}
+}

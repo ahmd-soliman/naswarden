@@ -281,3 +281,22 @@ func TestApplyUsableAndFallbackToRaw(t *testing.T) {
 		t.Errorf("json = %s, want no usable_* keys without a root dataset", out)
 	}
 }
+
+func TestScanReadsEndTimeAndProgress(t *testing.T) {
+	var p Pool
+	in := `{"name":"t","scan":{"function":"SCRUB","state":"FINISHED","errors":0,"end_time":{"$date":1700000000000},"percentage":100.0}}`
+	if err := json.Unmarshal([]byte(in), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Scan == nil || p.Scan.EndTime == nil || *p.Scan.EndTime != 1700000000 {
+		t.Fatalf("end time = %+v, want 1700000000", p.Scan)
+	}
+	if p.Scan.Percentage == nil || *p.Scan.Percentage != 100 {
+		t.Errorf("percentage = %v, want 100", p.Scan.Percentage)
+	}
+	in = `{"name":"t","scan":{"function":"SCRUB","state":"IN_PROGRESS","end_time":null}}`
+	p = Pool{}
+	if err := json.Unmarshal([]byte(in), &p); err != nil || p.Scan.EndTime != nil {
+		t.Errorf("a running scan has no end time: %+v, %v", p.Scan, err)
+	}
+}

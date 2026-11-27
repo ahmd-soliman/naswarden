@@ -68,6 +68,33 @@ groups:
         annotations:
           summary: "Disk {{ $labels.disk }} ({{ $labels.pool }}) at {{ $value }}C"
 
+  - name: naswarden-zfs
+    rules:
+      # ZFS counters since the pool was imported; any increase is a disk
+      # worth checking, long before the pool reports DEGRADED.
+      - alert: ZFSDiskErrors
+        expr: increase(naswarden_disk_errors[1h]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: "Disk {{ $labels.disk }} ({{ $labels.pool }}) logged {{ $value }} new {{ $labels.type }} error(s) in the last hour"
+
+      - alert: ZFSPoolFragmented
+        expr: naswarden_pool_fragmentation_percent > 80
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "Pool {{ $labels.pool }} is {{ $value }}% fragmented"
+
+      # TrueNAS scrubs every 35 days by default. The series only exists while
+      # the pool's latest scan is a finished scrub, so a pool that has never
+      # been scrubbed does not trigger this.
+      - alert: ZFSScrubOverdue
+        expr: time() - naswarden_pool_last_scrub_timestamp_seconds > 60 * 86400
+        for: 1h
+        labels: {severity: warning}
+        annotations:
+          summary: "Pool {{ $labels.pool }} was last scrubbed {{ $value | humanizeDuration }} ago"
+
   - name: naswarden-replication
     rules:
       - alert: ReplicationFailed

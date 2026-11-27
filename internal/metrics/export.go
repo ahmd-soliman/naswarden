@@ -8,6 +8,7 @@ package metrics
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +55,56 @@ var (
 		Name: "naswarden_pool_healthy",
 		Help: "1 if the ZFS pool is healthy and ONLINE, 0 otherwise.",
 	}, []string{"pool"})
+
+	poolFragmentation = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_pool_fragmentation_percent",
+		Help: "Free-space fragmentation of a ZFS pool, in percent. Absent when TrueNAS reports none.",
+	}, []string{"pool"})
+
+	poolScanInProgress = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_pool_scan_in_progress",
+		Help: "1 while the pool's latest scan (scrub or resilver) is running, 0 once it is not. Absent for a pool that never scanned.",
+	}, []string{"pool", "function"})
+
+	poolScanProgress = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_pool_scan_progress_percent",
+		Help: "How far the running scrub or resilver is, in percent. Only present while one is running and TrueNAS reports it.",
+	}, []string{"pool", "function"})
+
+	poolLastScrub = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_pool_last_scrub_timestamp_seconds",
+		Help: "Unix time the pool's last scrub finished. Only present while the pool's latest scan is a finished scrub (a later resilver replaces it).",
+	}, []string{"pool"})
+
+	diskErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_disk_errors",
+		Help: "ZFS error count of a pool member disk since its pool was imported. type is read, write or checksum.",
+	}, []string{"pool", "disk", "type"})
+
+	diskReadRate = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_disk_read_bytes_per_second",
+		Help: "Bytes per second read from a pool member disk between the last two refreshes. Absent until two refreshes have seen it.",
+	}, []string{"pool", "disk"})
+
+	diskWriteRate = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_disk_write_bytes_per_second",
+		Help: "Bytes per second written to a pool member disk between the last two refreshes. Absent until two refreshes have seen it.",
+	}, []string{"pool", "disk"})
+
+	datasetSnapshotBytes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_dataset_snapshot_bytes",
+		Help: "Bytes held only by snapshots of a ZFS dataset that has a quota or refquota.",
+	}, []string{"dataset"})
+
+	datasetCompressRatio = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_dataset_compression_ratio",
+		Help: "Compression ratio of a ZFS dataset that has a quota or refquota (1.5 means 1.5x). Absent when TrueNAS reports none.",
+	}, []string{"dataset"})
+
+	truenasInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_truenas_info",
+		Help: "Always 1; the version label is the TrueNAS version NasWarden is connected to.",
+	}, []string{"version"})
 
 	instanceUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "naswarden_instance_up",
@@ -144,6 +195,16 @@ var (
 	alertSeries           = newTracked(alertCount)
 	replicationSeries     = newTracked(replicationTaskStatus)
 	replicationLastSeries = newTracked(replicationLastSuccess)
+	poolFragSeries        = newTracked(poolFragmentation)
+	poolScanRunSeries     = newTracked(poolScanInProgress)
+	poolScanPctSeries     = newTracked(poolScanProgress)
+	poolLastScrubSeries   = newTracked(poolLastScrub)
+	diskErrorSeries       = newTracked(diskErrors)
+	diskReadRateSeries    = newTracked(diskReadRate)
+	diskWriteRateSeries   = newTracked(diskWriteRate)
+	datasetSnapSeries     = newTracked(datasetSnapshotBytes)
+	datasetRatioSeries    = newTracked(datasetCompressRatio)
+	truenasInfoSeries     = newTracked(truenasInfo)
 )
 
 func init() {
@@ -161,6 +222,16 @@ func init() {
 		alertCount,
 		replicationTaskStatus,
 		replicationLastSuccess,
+		poolFragmentation,
+		poolScanInProgress,
+		poolScanProgress,
+		poolLastScrub,
+		diskErrors,
+		diskReadRate,
+		diskWriteRate,
+		datasetSnapshotBytes,
+		datasetCompressRatio,
+		truenasInfo,
 		lastRefreshSuccess,
 		sourceStale,
 	)
@@ -170,12 +241,20 @@ func init() {
 func UpdateDatasets(datasets []truenas.Dataset) {
 	setUsed, doneUsed := datasetUsedSeries.begin()
 	setQuota, doneQuota := datasetQuotaSeries.begin()
+	setSnap, doneSnap := datasetSnapSeries.begin()
+	setRatio, doneRatio := datasetRatioSeries.begin()
 	for _, d := range datasets {
 		setUsed(float64(d.Used), d.Name)
 		setQuota(float64(d.Quota), d.Name)
+		setSnap(float64(d.UsedBySnapshots), d.Name)
+		if r, ok := parseRatio(d.CompressRatio); ok {
+			setRatio(r, d.Name)
+		}
 	}
 	doneUsed()
 	doneQuota()
+	doneSnap()
+	doneRatio()
 }
 
 // UpdatePoolUsable exports the usable capacity of the pools that have it.
@@ -201,6 +280,10 @@ func UpdatePools(pools []truenas.Pool) {
 	setSize, doneSize := poolSizeSeries.begin()
 	setHealthy, doneHealthy := poolHealthySeries.begin()
 	setTemp, doneTemp := diskTempSeries.begin()
+	setFrag, doneFrag := poolFragSeries.begin()
+	setScanRun, doneScanRun := poolScanRunSeries.begin()
+	setScanPct, doneScanPct := poolScanPctSeries.begin()
+	setScrub, doneScrub := poolLastScrubSeries.begin()
 	for _, p := range pools {
 		setAlloc(float64(p.Allocated), p.Name)
 		setSize(float64(p.Size), p.Name)
@@ -209,6 +292,25 @@ func UpdatePools(pools []truenas.Pool) {
 			val = 1.0
 		}
 		setHealthy(val, p.Name)
+
+		if f, err := strconv.ParseFloat(strings.TrimSpace(p.Fragmentation), 64); err == nil {
+			setFrag(f, p.Name)
+		}
+		if sc := p.Scan; sc != nil && sc.Function != "" {
+			fn := strings.ToLower(sc.Function)
+			running := sc.State == "IN_PROGRESS" || sc.State == "SCANNING"
+			run := 0.0
+			if running {
+				run = 1.0
+				if sc.Percentage != nil {
+					setScanPct(*sc.Percentage, p.Name, fn)
+				}
+			}
+			setScanRun(run, p.Name, fn)
+			if sc.Function == "SCRUB" && sc.State == "FINISHED" && sc.EndTime != nil {
+				setScrub(float64(*sc.EndTime), p.Name)
+			}
+		}
 
 		for _, vd := range p.Vdevs {
 			for _, child := range vd.Children {
@@ -222,6 +324,51 @@ func UpdatePools(pools []truenas.Pool) {
 	doneSize()
 	doneHealthy()
 	doneTemp()
+	doneFrag()
+	doneScanRun()
+	doneScanPct()
+	doneScrub()
+}
+
+// UpdateDisks exports the ZFS error counts and I/O rates of pool member
+// disks. Only members have them; a rate is left out until two refreshes have
+// seen the disk, never exported as 0.
+func UpdateDisks(disks []truenas.Disk) {
+	setErr, doneErr := diskErrorSeries.begin()
+	setRead, doneRead := diskReadRateSeries.begin()
+	setWrite, doneWrite := diskWriteRateSeries.begin()
+	for _, d := range disks {
+		if d.Pool == "" || d.ReadBytes == nil {
+			continue // not a pool member: ZFS has no counters for it
+		}
+		setErr(float64(d.ReadErrors), d.Pool, d.Name, "read")
+		setErr(float64(d.WriteErrors), d.Pool, d.Name, "write")
+		setErr(float64(d.ChecksumErrors), d.Pool, d.Name, "checksum")
+		if d.ReadRate != nil {
+			setRead(*d.ReadRate, d.Pool, d.Name)
+		}
+		if d.WriteRate != nil {
+			setWrite(*d.WriteRate, d.Pool, d.Name)
+		}
+	}
+	doneErr()
+	doneRead()
+	doneWrite()
+}
+
+// UpdateServer exports the TrueNAS version as an info metric.
+func UpdateServer(s *truenas.ServerInfo) {
+	set, done := truenasInfoSeries.begin()
+	if s.Version != "" {
+		set(1, s.Version)
+	}
+	done()
+}
+
+// parseRatio reads a TrueNAS compression ratio such as "1.08x".
+func parseRatio(s string) (float64, bool) {
+	v, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "x"), 64)
+	return v, err == nil && v > 0
 }
 
 // UpdateAlerts refreshes the TrueNAS alert count gauges.

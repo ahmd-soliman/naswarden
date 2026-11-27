@@ -33,6 +33,28 @@ type Scan struct {
 	Function string `json:"function"` // SCRUB / RESILVER / ...
 	State    string `json:"state"`    // FINISHED / IN_PROGRESS / ...
 	Errors   int64  `json:"errors"`
+	// EndTime is when a finished scan ended (Unix seconds), nil if it has not
+	// or TrueNAS did not say. Percentage is how far a running scan is
+	// (0-100), nil when TrueNAS did not report one.
+	EndTime    *int64   `json:"end_time,omitempty"`
+	Percentage *float64 `json:"percentage,omitempty"`
+}
+
+// UnmarshalJSON reads end_time, which TrueNAS sends as {"$date": ms}.
+func (s *Scan) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Function   string          `json:"function"`
+		State      string          `json:"state"`
+		Errors     int64           `json:"errors"`
+		EndTime    json.RawMessage `json:"end_time"`
+		Percentage *float64        `json:"percentage"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	*s = Scan{Function: raw.Function, State: raw.State, Errors: raw.Errors,
+		EndTime: parseTrueNASTime(raw.EndTime), Percentage: raw.Percentage}
+	return nil
 }
 
 // Vdev is one top-level vdev group (mirror-0, raidz1-0, a bare disk, ...)
