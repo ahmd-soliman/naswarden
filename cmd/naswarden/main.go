@@ -316,9 +316,12 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	// a TrueNAS that lacks one (listed as empty) or fails one keeps the others
 	// fresh. Task names, paths and remotes go to the state message only.
 	protection := []truenas.ProtectionTask{}
-	loc, tzErr := time.LoadLocation(server.Timezone)
-	if tzErr != nil {
-		loc = nil // overdue cannot be judged without the NAS's zone
+	// LoadLocation("") means UTC, which would be a silent wrong answer.
+	var loc *time.Location
+	if server.Timezone != "" {
+		if l, err := time.LoadLocation(server.Timezone); err == nil {
+			loc = l // without the NAS's zone, overdue cannot be judged
+		}
 	}
 	if cache.protection == nil {
 		cache.protection = map[string][]truenas.ProtectionTask{}
