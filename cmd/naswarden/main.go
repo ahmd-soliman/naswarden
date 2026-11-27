@@ -199,6 +199,11 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 			cache.containers = fresh
 		}
 	}
+	// Docker off: nothing was ever fetched, so this is nil. It must go out as
+	// [], not null, like every other list in the message.
+	if containers == nil {
+		containers = []docker.Container{}
+	}
 	metrics.UpdateContainers(containers)
 
 	// Virtual machines and containers from TrueNAS Native and Incus. Like

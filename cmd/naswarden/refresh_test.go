@@ -149,6 +149,23 @@ func TestRefreshBroadcastsStateAndMarksHealthy(t *testing.T) {
 	}
 }
 
+// With Docker off (the rig passes no client), every list in the state
+// message must still be a list: a null here once blanked the page, and the
+// browser's own guard is not a reason for the wire format to allow it.
+func TestRefreshNeverSendsNullLists(t *testing.T) {
+	r := newRefreshRig(t)
+	r.tn.set("pool.query", `[]`)
+
+	r.run()
+
+	msg := r.next(t)
+	for _, k := range []string{"pools", "datasets", "containers", "vms", "disks", "alerts", "replications", "stale_sources"} {
+		if _, ok := msg[k].([]any); !ok {
+			t.Errorf("%s = %#v, want a list ([]), not null", k, msg[k])
+		}
+	}
+}
+
 func TestRefreshKeepsLastGoodWhenAnOptionalSourceFails(t *testing.T) {
 	r := newRefreshRig(t)
 	r.tn.set("alert.list", `[{"id":"a1","level":"WARNING","klass":"X","formatted":"disk warm","datetime":{"$date":1700000000000},"dismissed":false}]`)
