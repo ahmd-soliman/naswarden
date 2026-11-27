@@ -67,7 +67,7 @@ func newScriptedTrueNAS(t *testing.T) *scriptedTrueNAS {
 				case m.Method == "auth.login_with_api_key":
 					_ = conn.WriteJSON(map[string]any{"msg": "result", "id": m.ID, "result": true})
 				case failing:
-					_ = conn.WriteJSON(map[string]any{"msg": "result", "id": m.ID, "error": map[string]any{"error": "EFAULT", "reason": "boom"}})
+					_ = conn.WriteJSON(map[string]any{"msg": "result", "id": m.ID, "error": map[string]any{"error": 14, "errname": "EFAULT", "reason": "boom"}})
 				default:
 					if result == "" {
 						result = "[]"

@@ -51,12 +51,12 @@ func TestServicesEmptyIsNotNil(t *testing.T) {
 
 func TestBuildShares(t *testing.T) {
 	smb := []rawShare{
-		{Name: "media", Path: "/mnt/tank/media", Enabled: ptrBool(true), RO: true},
+		{Name: "media", Path: "/mnt/tank/media", Enabled: ptrBool(true), Readonly: true, Locked: true},
 		{Name: "old", Path: "/mnt/tank/old", Enabled: ptrBool(false)},
 		{Name: "nopath"}, // missing fields tolerated
 	}
 	got := buildShares("cifs", smb)
-	if len(got) != 3 || !got[0].ReadOnly || got[1].Enabled || !got[2].Enabled || got[2].Path != "" {
+	if len(got) != 3 || !got[0].ReadOnly || !got[0].Locked || got[1].Enabled || !got[2].Enabled || got[2].Path != "" {
 		t.Fatalf("smb: %+v", got)
 	}
 	nfs := buildShares("nfs", []rawShare{{Comment: "isos", Paths: []string{"/mnt/a", "/mnt/b"}, Enabled: ptrBool(true)}})
@@ -105,7 +105,8 @@ func scriptedClient(t *testing.T, results map[string]string, errs map[string]map
 }
 
 func TestListServicesAndSharesMissingMethod(t *testing.T) {
-	missing := map[string]any{"error": "ENOMETHOD", "reason": `Method "sharing.nfs.query" not found`}
+	// The reply as TrueNAS 25.10.7 sends it: a numeric errno plus its name.
+	missing := map[string]any{"error": 32, "errname": "ENOMETHOD", "reason": "Method 'query' not found in 'sharing.nfs'"}
 	c := scriptedClient(t,
 		map[string]string{
 			"service.query":     `[{"service":"cifs","enable":true,"state":"RUNNING"}]`,
@@ -128,9 +129,25 @@ func TestListServicesAndSharesMissingMethod(t *testing.T) {
 }
 
 func TestListSharesRealErrorIsAnError(t *testing.T) {
-	c := scriptedClient(t, nil, map[string]map[string]any{"sharing.smb.query": {"error": "EACCES", "reason": "denied"}})
+	c := scriptedClient(t, nil, map[string]map[string]any{"sharing.smb.query": {"error": 13, "errname": "EACCES", "reason": "denied"}})
 	_, err := ListShares(context.Background(), c)
 	if err == nil || errors.Is(err, ErrNoMethod) {
 		t.Fatalf("want a real error, got %v", err)
+	}
+}
+
+// A numeric "error" used to fail decoding, which dropped the connection and
+// every call in flight with it. After an error reply the same client must keep
+// working.
+func TestNumericErrorCodeDoesNotDropTheConnection(t *testing.T) {
+	c := scriptedClient(t,
+		map[string]string{"service.query": `[{"service":"ssh","enable":true,"state":"RUNNING"}]`},
+		map[string]map[string]any{"sharing.smb.query": {"error": 13, "errname": "EACCES", "reason": "denied"}})
+	if _, err := ListShares(context.Background(), c); err == nil || !strings.Contains(err.Error(), "denied") {
+		t.Fatalf("want the middleware's reason, got %v", err)
+	}
+	svc, err := ListServices(context.Background(), c)
+	if err != nil || len(svc) != 1 {
+		t.Fatalf("the connection must survive an error reply: %v %v", svc, err)
 	}
 }

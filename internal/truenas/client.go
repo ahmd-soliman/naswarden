@@ -65,10 +65,16 @@ type ddpMessage struct {
 	Error   *ddpError       `json:"error,omitempty"`
 }
 
+// ddpError is the middleware's error object. On the wire "error" is the
+// numeric errno and "errname" its name ({"error":32,"errname":"ENOMETHOD",
+// "reason":"Method 'x' not found in 'y'"}, seen on TrueNAS 25.10.7). Error is
+// kept raw so that either a number or a name decodes: a field typed string
+// made every error reply fail to decode, which tore the connection down.
 type ddpError struct {
-	Error   string `json:"error"`
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
+	Error   json.RawMessage `json:"error"`
+	Errname string          `json:"errname"`
+	Reason  string          `json:"reason"`
+	Message string          `json:"message"`
 }
 
 // ErrNoMethod matches (errors.Is) a call the middleware rejected because it
@@ -86,14 +92,9 @@ func (e *callError) Is(target error) bool {
 }
 
 func newCallError(method string, e *ddpError) error {
-	// The middleware answers ENOMETHOD ("Method ... not found"); the error
-	// text is not verified against a real box, so match the code and the
-	// wording both.
-	reason := e.String()
 	return &callError{
-		msg: fmt.Sprintf("%s: %s", method, reason),
-		noMethod: e.Error == "ENOMETHOD" ||
-			(e.Error == "" && strings.Contains(strings.ToLower(reason), "method") && strings.Contains(strings.ToLower(reason), "not found")),
+		msg:      fmt.Sprintf("%s: %s", method, e.String()),
+		noMethod: e.Errname == "ENOMETHOD" || strings.Trim(string(e.Error), `"`) == "ENOMETHOD",
 	}
 }
 

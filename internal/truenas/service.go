@@ -28,6 +28,9 @@ type Share struct {
 	Path     string `json:"path"`
 	Enabled  bool   `json:"enabled"`
 	ReadOnly bool   `json:"read_only"`
+	// Locked: the share's dataset is locked (encrypted, not unlocked), so it
+	// cannot be served. TrueNAS reports it on both share types.
+	Locked bool `json:"locked"`
 }
 
 type rawService struct {
@@ -36,16 +39,18 @@ type rawService struct {
 	Enable  bool   `json:"enable"`
 }
 
-// Tolerant on purpose: none of these fields has been checked against a
-// recorded response. NFS shares carry `path` on newer releases and `paths`
-// (a list) on older ones.
+// Fields as TrueNAS 25.10.7 returns them. SMB calls read-only `readonly`, NFS
+// calls it `ro`. NFS shares carry `path` there and `paths` (a list) on older
+// releases. Everything is optional: a missing field reads as its zero value.
 type rawShare struct {
-	Name    string   `json:"name"`
-	Comment string   `json:"comment"`
-	Path    string   `json:"path"`
-	Paths   []string `json:"paths"`
-	Enabled *bool    `json:"enabled"`
-	RO      bool     `json:"ro"`
+	Name     string   `json:"name"`
+	Comment  string   `json:"comment"`
+	Path     string   `json:"path"`
+	Paths    []string `json:"paths"`
+	Enabled  *bool    `json:"enabled"`
+	RO       bool     `json:"ro"`       // NFS
+	Readonly bool     `json:"readonly"` // SMB
+	Locked   bool     `json:"locked"`
 }
 
 // ListServices queries service.query and returns the services that are
@@ -133,7 +138,7 @@ func buildShares(service string, rawList []rawShare) []Share {
 		}
 		enabled := r.Enabled == nil || *r.Enabled // field absent: assume on
 		for _, p := range paths {
-			out = append(out, Share{Service: service, Name: name, Path: p, Enabled: enabled, ReadOnly: r.RO})
+			out = append(out, Share{Service: service, Name: name, Path: p, Enabled: enabled, ReadOnly: r.RO || r.Readonly, Locked: r.Locked})
 		}
 	}
 	return out
