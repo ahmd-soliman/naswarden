@@ -255,6 +255,18 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
         enabled: true,
       },
     ],
+    services: [
+      { name: 'cifs', state: 'RUNNING', enable: true, problem: false },
+      { name: 'nfs', state: 'STOPPED', enable: true, problem: true },
+      { name: 'ssh', state: 'RUNNING', enable: true, problem: false },
+      { name: 'smartd', state: 'RUNNING', enable: true, problem: false },
+    ],
+    shares: [
+      { service: 'cifs', name: 'media', path: '/mnt/tank/media', enabled: true, read_only: true },
+      { service: 'cifs', name: 'documents', path: '/mnt/tank/documents', enabled: true, read_only: false },
+      { service: 'cifs', name: 'scratch', path: '/mnt/gone/scratch', enabled: true, read_only: false },
+      { service: 'nfs', name: '', path: '/mnt/fast/apps', enabled: true, read_only: false },
+    ],
     stale_sources: [],
     docker: { state: 'on', access: 'socket' },
   }
