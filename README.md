@@ -157,6 +157,16 @@ NasWarden exposes Prometheus gauges at `/metrics` for integration with Prometheu
 | `naswarden_container_up{container, stack}` | Gauge | `1` if Docker container is running, `0` otherwise |
 | `naswarden_truenas_alert_count{level}` | Gauge | Active, un-dismissed TrueNAS alerts by severity |
 | `naswarden_disk_temperature_celsius{pool, disk}` | Gauge | Current drive temperature (active drives only) |
+| `naswarden_disk_errors{pool, disk, type}` | Gauge | ZFS read / write / checksum error count of a pool member disk since its pool was imported |
+| `naswarden_disk_read_bytes_per_second{pool, disk}` | Gauge | Read rate of a pool member disk between refreshes. Absent until two refreshes have seen the disk |
+| `naswarden_disk_write_bytes_per_second{pool, disk}` | Gauge | Write rate, like the one above |
+| `naswarden_pool_fragmentation_percent{pool}` | Gauge | Free-space fragmentation of the pool. Absent when TrueNAS reports none |
+| `naswarden_pool_scan_in_progress{pool, function}` | Gauge | `1` while the pool's latest scan (`scrub` or `resilver`) is running, `0` otherwise |
+| `naswarden_pool_scan_progress_percent{pool, function}` | Gauge | Progress of the running scan. Only present while one runs and TrueNAS reports it |
+| `naswarden_pool_last_scrub_timestamp_seconds{pool}` | Gauge | Unix time the last scrub finished. Only present while the pool's latest scan is a finished scrub (a later resilver replaces it) |
+| `naswarden_dataset_snapshot_bytes{dataset}` | Gauge | Bytes held only by snapshots, for datasets with a quota |
+| `naswarden_dataset_compression_ratio{dataset}` | Gauge | Compression ratio (`1.5` = 1.5x), for datasets with a quota |
+| `naswarden_truenas_info{version}` | Gauge | Always `1`; the label is the TrueNAS version |
 | `naswarden_replication_task_status{task_id, name, target_pool, state, job_state}` | Gauge | `1` for a task's current state |
 | `naswarden_replication_last_success_timestamp_seconds{name}` | Gauge | Unix time the task last finished successfully (remembered across failed runs) |
 | `naswarden_last_refresh_success_timestamp_seconds` | Gauge | Unix time of the last successful refresh of the core TrueNAS data |

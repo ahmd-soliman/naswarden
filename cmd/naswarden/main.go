@@ -164,6 +164,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		return
 	}
 	server.Update = updates.Get()
+	metrics.UpdateServer(server)
 
 	pools, err := truenas.ListPools(ctx, client)
 	if err != nil {
@@ -249,6 +250,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	if disks == nil {
 		disks = []truenas.Disk{}
 	}
+	metrics.UpdateDisks(disks)
 
 	// TrueNAS alerts and replication tasks: like the other optional
 	// sources, a failed call keeps the last good list (flagged stale)
