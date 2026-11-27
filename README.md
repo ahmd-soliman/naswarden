@@ -23,6 +23,8 @@ Light theme (follows the system by default; the switch in the top bar picks Syst
 
 ![Overview in the light theme](docs/screenshots/screenshot-light.png)
 
+![Data protection: snapshot, Cloud Sync, Rsync and backup tasks, with the failed task's detail panel](docs/screenshots/screenshot-protection.png)
+
 ![Docker stacks](docs/screenshots/screenshot-stacks.png)
 
 ---

@@ -139,6 +139,11 @@ function vm(now, name, type, os, status, cpu, memGB, memTotalGB, cores, ip, { ma
 
 // now: Unix seconds; timestamps in the state are relative to it, so "updated
 // 8s ago" and "6h ago" read the same whenever the screenshots are taken.
+// A data protection task as the backend sends it, with the plain defaults.
+function protectionTask(o) {
+  return { exclude: [], enabled: true, overdue: false, ...o }
+}
+
 export function demoState(now = Math.floor(Date.now() / 1000)) {
   const apps = [
     ['jellyfin', 'jellyfin', 'jellyfin/jellyfin:10.11.3', 3.4, 912, { port: 30013 }],
@@ -267,6 +272,19 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
       { service: 'cifs', name: 'scratch', path: '/mnt/gone/scratch', enabled: true, read_only: false },
       { service: 'cifs', name: 'vault', path: '/mnt/tank/vault', enabled: true, read_only: false, locked: true },
       { service: 'nfs', name: '', path: '/mnt/fast/apps', enabled: true, read_only: false },
+    ],
+    protection: [
+      protectionTask({ kind: 'snapshot', id: 1, name: 'tank/media', source: 'tank/media', schedule: '0 0 * * *', retention: '2 WEEK', recursive: true, state: 'OK', time_finished: now - 15 * 3600 }),
+      protectionTask({ kind: 'snapshot', id: 2, name: 'tank/photos', source: 'tank/photos', schedule: '0 0 * * *', retention: '2 WEEK', recursive: true, state: 'OK', time_finished: now - 15 * 3600 }),
+      protectionTask({ kind: 'snapshot', id: 3, name: 'tank/documents', source: 'tank/documents', schedule: '0 0 * * *', retention: '2 WEEK', recursive: true, state: 'OK', time_finished: now - 15 * 3600 }),
+      protectionTask({ kind: 'snapshot', id: 4, name: 'fast/apps', source: 'fast/apps', schedule: '0 0 * * *', retention: '2 WEEK', recursive: true, state: 'OK', time_finished: now - 15 * 3600 }),
+      protectionTask({ kind: 'snapshot', id: 5, name: 'tank/backups', source: 'tank/backups', schedule: '0 0 * * *', retention: '2 WEEK', recursive: true, state: 'OK', time_finished: now - 15 * 3600 }),
+      protectionTask({ kind: 'cloudsync', id: 1, name: 'Photos to cloud', source: '/mnt/tank/photos', remote: 'S3 photos-archive', direction: 'PUSH', schedule: '0 2 * * *', state: 'OK', time_started: now - 13 * 3600, time_finished: now - 13 * 3600 + 540, duration_seconds: 540 }),
+      protectionTask({ kind: 'cloudsync', id: 2, name: 'Documents mirror', source: '/mnt/tank/documents', remote: 'GOOGLE_DRIVE mirror', direction: 'PUSH', schedule: '30 3 * * *', state: 'FAILED', error: "[EFAULT] Cloud Sync failed: couldn't login to Google Drive: invalid_grant: Token has been expired or revoked.", time_started: now - 12 * 3600, time_finished: now - 12 * 3600 + 25, duration_seconds: 25 }),
+      protectionTask({ kind: 'cloudsync', id: 3, name: 'Archive upload', source: '/mnt/tank/backups', remote: 'B2 cold-archive', direction: 'PUSH', schedule: '0 4 * * 0', state: 'RUNNING', progress_percent: 41.5, progress_description: '212 / 511 files, 38.2 GiB / 92 GiB', time_started: now - 50 * 60 }),
+      protectionTask({ kind: 'rsync', id: 1, name: 'Offsite copy', source: '/mnt/tank/documents', remote: 'backup-host:/srv/in', direction: 'PUSH', schedule: '0 1 * * mon,thu', state: 'OK', overdue: true, time_started: now - 6 * 86400, time_finished: now - 6 * 86400 + 300, duration_seconds: 300 }),
+      protectionTask({ kind: 'cloud_backup', id: 1, name: 'Restic to S3', source: '/mnt/tank/photos', remote: 'S3 restic', schedule: '0 5 * * *', retention: 'last 14', state: 'NEVER' }),
+      protectionTask({ kind: 'cloud_backup', id: 2, name: 'Old backup', source: '/mnt/tank/old', remote: 'S3 old', schedule: '0 5 * * *', enabled: false, state: 'DISABLED', time_started: now - 40 * 86400, time_finished: now - 40 * 86400 + 60 }),
     ],
     stale_sources: [],
     docker: { state: 'on', access: 'socket' },

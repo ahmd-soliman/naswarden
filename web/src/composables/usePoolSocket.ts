@@ -213,6 +213,33 @@ export interface ReplicationTask {
   enabled: boolean
 }
 
+// A periodic snapshot, Cloud Sync, Rsync or TrueCloud backup task. The backend
+// computes `state`; names, paths and remotes are shown here but never exported
+// as metrics.
+export interface ProtectionTask {
+  kind: 'snapshot' | 'cloudsync' | 'rsync' | 'cloud_backup'
+  id: number
+  name: string
+  source: string // dataset or local path covered
+  remote?: string
+  direction?: string // "PUSH" | "PULL"
+  schedule?: string // cron fields "m h dom mon dow"
+  window?: string // snapshot tasks: "08:00-18:00", when not all day
+  retention?: string // snapshot: "2 WEEK"; backup: "last 7"
+  recursive?: boolean
+  exclude: string[]
+  enabled: boolean
+  state: 'OK' | 'RUNNING' | 'FAILED' | 'NEVER' | 'DISABLED' | 'UNKNOWN'
+  overdue: boolean // last run fine, but a scheduled run since then is missing
+  progress_percent?: number
+  progress_description?: string
+  error?: string
+  last_snapshot?: string
+  time_started?: number
+  time_finished?: number
+  duration_seconds?: number
+}
+
 // A TrueNAS service that is enabled or running (the backend drops the rest).
 export interface Service {
   name: string // middleware name: "cifs", "nfs", "ssh", ...
@@ -261,6 +288,7 @@ interface StateMessage {
   replications?: ReplicationTask[] | null
   services?: Service[] | null // absent from backends older than the services source
   shares?: Share[] | null
+  protection?: ProtectionTask[] | null // absent from backends older than data protection
   docker?: DockerStatus // absent from backends older than 1.1.0
 }
 
@@ -280,6 +308,7 @@ export function usePoolSocket() {
   const replications = ref<ReplicationTask[]>([])
   const services = ref<Service[]>([])
   const shares = ref<Share[]>([])
+  const protection = ref<ProtectionTask[]>([])
   const connected = ref(false)
   const updatedAt = ref<number | null>(null)
   const serverError = ref<string | null>(null)
@@ -320,6 +349,7 @@ export function usePoolSocket() {
         replications.value = msg.replications ?? []
         services.value = msg.services ?? []
         shares.value = msg.shares ?? []
+        protection.value = msg.protection ?? []
         updatedAt.value = msg.updated_at ?? null
         staleSources.value = msg.stale_sources ?? []
       }
@@ -350,6 +380,7 @@ export function usePoolSocket() {
     replications,
     services,
     shares,
+    protection,
     connected,
     updatedAt,
     staleSources,
