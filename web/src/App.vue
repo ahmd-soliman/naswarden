@@ -22,6 +22,8 @@ import StackDetails from './components/StackDetails.vue'
 import AlertsDetails from './components/AlertsDetails.vue'
 import ServicesRow from './components/ServicesRow.vue'
 import ServiceDetails from './components/ServiceDetails.vue'
+import ProtectionSection from './components/ProtectionSection.vue'
+import ProtectionDetails from './components/ProtectionDetails.vue'
 import DiskDetails from './components/DiskDetails.vue'
 import TempRange from './components/TempRange.vue'
 import ListTable from './components/ListTable.vue'
@@ -30,7 +32,7 @@ import ViewToggle from './components/ViewToggle.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import { useTheme } from './composables/useTheme'
 import { usePoolSocket } from './composables/usePoolSocket'
-import type { Alert, Container, Dataset, Disk, Pool, ServerInfo, Service, VM } from './composables/usePoolSocket'
+import type { Alert, Container, Dataset, Disk, Pool, ProtectionTask, ServerInfo, Service, VM } from './composables/usePoolSocket'
 import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped, memberBadge, stackBadgeLabel } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
 import { vmIconCandidates } from './composables/useVMs'
@@ -39,6 +41,7 @@ import { diskBadge, diskNeedsAttention, diskTypeLabel, totalRates, zfsErrors } f
 import { useViewMode } from './composables/useViewMode'
 import { useWide } from './composables/useWide'
 import { serviceAttention, serviceLabel, sharesOf } from './composables/services'
+import { matchesProtection, protectionAttention, protectionSummary, taskKey } from './composables/protection'
 import { usePanel } from './composables/usePanel'
 import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
@@ -54,6 +57,7 @@ const {
   replications,
   services,
   shares,
+  protection,
   connected,
   updatedAt,
   staleSources,
@@ -144,12 +148,13 @@ const showDockerSetup = computed(
 )
 const hasVMs = computed(() => vms.value.length > 0)
 const hasDisks = computed(() => disks.value.length > 0)
+const hasProtection = computed(() => protection.value.length > 0)
 
 // 'all' shows every section at once (the default, glanceable overview);
 // picking a rail item filters down to just that section. Filtering never
 // hides data the "All" view wouldn't already show -- it's a convenience,
 // not a different data set.
-const activeSection = ref<'all' | 'server' | 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers'>('all')
+const activeSection = ref<'all' | 'server' | 'pools' | 'disks' | 'datasets' | 'protection' | 'vms' | 'stacks' | 'containers'>('all')
 
 function selectSection(name: typeof activeSection.value) {
   activeSection.value = name
@@ -166,15 +171,17 @@ const q = computed(() => normalizeQuery(query.value))
 const filteredPools = computed(() => pools.value.filter((p) => matchesPool(p, q.value)))
 const filteredDisks = computed(() => disks.value.filter((d) => matchesDisk(d, q.value)))
 const filteredDatasets = computed(() => sortedDatasets.value.filter((d) => matchesDataset(d, q.value)))
+const filteredProtection = computed(() => protection.value.filter((t) => matchesProtection(t, q.value)))
 const filteredVMs = computed(() => vms.value.filter((v) => matchesVM(v, q.value)))
 const filteredStacks = computed(() => stacks.value.filter((s) => matchesStack(s, q.value)))
 const filteredContainers = computed(() => sortedContainers.value.filter((c) => matchesContainer(c, q.value)))
 
-type Searchable = 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers'
+type Searchable = 'pools' | 'disks' | 'datasets' | 'protection' | 'vms' | 'stacks' | 'containers'
 const matchCount = computed<Record<Searchable, number>>(() => ({
   pools: filteredPools.value.length,
   disks: filteredDisks.value.length,
   datasets: filteredDatasets.value.length,
+  protection: filteredProtection.value.length,
   vms: filteredVMs.value.length,
   stacks: filteredStacks.value.length,
   containers: filteredContainers.value.length,
@@ -191,7 +198,7 @@ function sectionVisible(name: Searchable) {
   return inScope(name) && (!q.value || matchCount.value[name] > 0)
 }
 const resultCount = computed(() =>
-  (['pools', 'disks', 'datasets', 'vms', 'stacks', 'containers'] as Searchable[])
+  (['pools', 'disks', 'datasets', 'protection', 'vms', 'stacks', 'containers'] as Searchable[])
     .filter(inScope)
     .reduce((sum, name) => sum + matchCount.value[name], 0),
 )
@@ -211,7 +218,7 @@ onBeforeUnmount(() => clearTimeout(announceTimer))
 // view and highlight the matching rail item -- without hiding any other
 // section. Paused while a specific section is filtered in, since every
 // other section is already hidden then.
-const scrollSection = ref<'server' | 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers'>('server')
+const scrollSection = ref<'server' | 'pools' | 'disks' | 'datasets' | 'protection' | 'vms' | 'stacks' | 'containers'>('server')
 let observer: IntersectionObserver | null = null
 
 function initObserver() {
@@ -243,13 +250,19 @@ onMounted(() => {
 })
 // Containers/VMs sections only exist in the DOM once telemetry arrives --
 // re-observe when that changes so the rail highlight tracks them too.
-watch([hasContainers, hasStacks, hasVMs, hasDisks], () => nextTick(initObserver))
+watch([hasContainers, hasStacks, hasVMs, hasDisks, hasProtection], () => nextTick(initObserver))
 onBeforeUnmount(() => {
   observer?.disconnect()
   window.removeEventListener('scroll', onScroll)
 })
 
 const serverAttention = computed(() => serviceAttention(services.value, shares.value, pools.value))
+
+// Failed or overdue backup, snapshot, sync and rsync tasks. TrueNAS raises its own
+// alert for a failed task, which the alert pill already counts; counting them
+// there again would show one problem twice, so the pill is left to TrueNAS.
+const protectionAlerts = computed(() => protectionAttention(protection.value))
+const protectionHeader = computed(() => protectionSummary(protection.value))
 
 const poolAlerts = computed(() => {
   const crit = pools.value.filter((p) => !p.healthy).length
@@ -287,7 +300,7 @@ const containerAlerts = computed(() => {
   return { count: crit, level: 'crit' }
 })
 
-function railClass(section: 'server' | 'pools' | 'disks' | 'datasets' | 'vms' | 'stacks' | 'containers') {
+function railClass(section: 'server' | 'pools' | 'disks' | 'datasets' | 'protection' | 'vms' | 'stacks' | 'containers') {
   return {
     active: activeSection.value === section,
     'scroll-active': isScrollHint(activeSection.value, scrolledDown.value, scrollSection.value, section),
@@ -308,6 +321,7 @@ type Selected =
   | { kind: 'disk'; data: Disk }
   | { kind: 'alerts'; data: Alert[] }
   | { kind: 'service'; data: Service }
+  | { kind: 'protection'; data: ProtectionTask }
 
 type SelectionTarget =
   | { kind: 'server' }
@@ -319,6 +333,7 @@ type SelectionTarget =
   | { kind: 'disk'; name: string }
   | { kind: 'alerts' }
   | { kind: 'service'; name: string }
+  | { kind: 'protection'; name: string } // taskKey: "cloudsync:3"
 
 const selectedTarget = ref<SelectionTarget | null>(null)
 
@@ -346,6 +361,8 @@ function findLive(t: SelectionTarget): SelectedData | undefined {
       return activeAlerts.value
     case 'service':
       return services.value.find((s) => s.name === t.name)
+    case 'protection':
+      return protection.value.find((p) => taskKey(p) === t.name)
   }
 }
 
@@ -354,7 +371,7 @@ function findLive(t: SelectionTarget): SelectedData | undefined {
 // watcher rather than inside the computed below, which must stay pure.
 let lastLive: { key: string; data: SelectedData } | null = null
 watch(
-  [selectedTarget, server, pools, datasets, vms, disks, stacks, containers, services],
+  [selectedTarget, server, pools, datasets, vms, disks, stacks, containers, services, protection],
   () => {
     const t = selectedTarget.value
     if (!t) {
@@ -383,6 +400,7 @@ const drawerTitle = computed(() => {
   if (selected.value.kind === 'server') return selected.value.data.hostname
   if (selected.value.kind === 'alerts') return 'System Alerts'
   if (selected.value.kind === 'service') return serviceLabel(selected.value.data.name)
+  if (selected.value.kind === 'protection') return selected.value.data.name
   return selected.value.data.name
 })
 const drawerBack = computed(() =>
@@ -584,6 +602,19 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
           </span>
         </button>
         <button
+          v-if="hasProtection"
+          class="rail__item rail__item--protection"
+          :class="railClass('protection')"
+          :aria-current="activeSection === 'protection' ? 'true' : undefined"
+          @click="selectSection('protection')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="m9 12 2 2 4-4"/></svg>
+          Data protection
+          <span v-if="protectionAlerts.count > 0" class="rail__badge" :class="`rail__badge--${protectionAlerts.level}`" :title="`${protectionAlerts.count} backup, snapshot or sync task(s) failed or overdue`">
+            {{ protectionAlerts.count }}
+          </span>
+        </button>
+        <button
           v-if="hasVMs"
           class="rail__item rail__item--vm"
           :class="railClass('vms')"
@@ -717,6 +748,21 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
               />
               <p v-if="datasets.length === 0" class="empty">No datasets with a quota configured.</p>
             </div>
+          </ErrorBoundary>
+        </section>
+
+        <section v-if="hasProtection" v-show="sectionVisible('protection')" data-section="protection" class="section--protection">
+          <div class="section__head">
+            <h2>Data protection</h2>
+            <span class="section__count" :class="`section__count--${protectionHeader.tone}`">{{ protectionHeader.text }}</span>
+          </div>
+          <ErrorBoundary label="data protection" :reset-key="updatedAt">
+            <ProtectionSection
+              :tasks="filteredProtection"
+              :active="selectedTarget?.kind === 'protection' ? selectedTarget.name : undefined"
+              :now-sec="Math.floor(nowMs / 1000)"
+              @select="(t: ProtectionTask) => toggle({ kind: 'protection', name: taskKey(t) }, isOpen({ kind: 'protection', name: taskKey(t) }))"
+            />
           </ErrorBoundary>
         </section>
 
@@ -858,6 +904,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
           v-else-if="selected?.kind === 'alerts'"
           :alerts="selected.data"
         />
+        <ProtectionDetails v-else-if="selected?.kind === 'protection'" :task="selected.data" />
         <ServiceDetails
           v-else-if="selected?.kind === 'service'"
           :service="selected.data"
@@ -1100,6 +1147,7 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 .rail__item--disk { --rail-accent: var(--pool); }
 .rail__item--dataset { --rail-accent: var(--dataset); }
 .rail__item--vm { --rail-accent: var(--vm); }
+.rail__item--protection { --rail-accent: var(--pool); }
 .rail__item--stack { --rail-accent: var(--stack); }
 .rail__item--container { --rail-accent: var(--container); }
 
@@ -1118,6 +1166,10 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
 .rail__item--dataset.active svg,
 .rail__item--dataset.scroll-active svg {
   color: var(--dataset);
+}
+.rail__item--protection.active svg,
+.rail__item--protection.scroll-active svg {
+  color: var(--pool);
 }
 .rail__item--vm.active svg,
 .rail__item--vm.scroll-active svg {
@@ -1177,8 +1229,24 @@ section {
 .section--container {
   --accent: var(--container);
 }
-.section--disk {
+.section--disk,
+.section--protection {
   --accent: var(--pool);
+}
+.section__count {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.section__count--crit {
+  color: var(--crit-t);
+  font-weight: 600;
+}
+.section__count--warn {
+  color: var(--warn-t);
+  font-weight: 600;
+}
+.section__count--ok {
+  color: var(--ok-t);
 }
 
 .chips {

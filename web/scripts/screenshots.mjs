@@ -37,6 +37,14 @@ const shots = [
     },
   },
   {
+    name: 'protection',
+    size: { width: 1440, height: 900 },
+    act: async (page) => {
+      await page.locator('.rail__item', { hasText: 'Data protection' }).click()
+      await page.locator('section[data-section=protection] .row', { hasText: 'Documents mirror' }).click()
+    },
+  },
+  {
     name: 'stacks',
     size: { width: 1440, height: 900 },
     act: async (page) => {
