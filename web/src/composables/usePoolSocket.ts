@@ -227,6 +227,7 @@ export interface Share {
   path: string // '' when TrueNAS gave none
   enabled: boolean
   read_only: boolean
+  locked?: boolean // its dataset is locked, so it cannot be served
 }
 
 // Whether and how NasWarden reads Docker, fixed at backend startup:

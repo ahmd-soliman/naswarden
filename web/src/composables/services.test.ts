@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Pool, Service, Share } from './usePoolSocket'
-import { serviceLabel, serviceStateText, serviceTone, shareIssue, sharesOf } from './services'
+import { serviceAttention, serviceLabel, serviceStateText, serviceTone, shareIssue, sharesOf } from './services'
 
 const svc = (o: Partial<Service>): Service => ({ name: 'cifs', state: 'RUNNING', enable: true, problem: false, ...o })
 const share = (o: Partial<Share>): Share => ({ service: 'cifs', name: 's', path: '/mnt/tank/s', enabled: true, read_only: false, ...o })
@@ -39,8 +39,24 @@ describe('shareIssue', () => {
     expect(shareIssue(share({ path: '/mnt/gone/x' }), pools)).toMatch(/gone is not available/)
     expect(shareIssue(share({ path: '/mnt/old/x' }), pools)).toMatch(/old is offline/)
   })
+  it('flags a share whose dataset is locked', () => {
+    expect(shareIssue(share({ locked: true }), pools)).toBe('Dataset is locked')
+    expect(shareIssue(share({ locked: true, enabled: false }), pools)).toBe('')
+  })
   it('does not judge a disabled share, or a path outside /mnt', () => {
     expect(shareIssue(share({ path: '', enabled: false }), pools)).toBe('')
     expect(shareIssue(share({ path: '/var/data' }), pools)).toBe('')
+  })
+})
+
+describe('serviceAttention', () => {
+  const pools = [pool('tank')]
+  it('is zero when everything works', () => {
+    expect(serviceAttention([svc({})], [share({})], pools).count).toBe(0)
+  })
+  it('counts stopped-but-enabled services and broken shares; a down service is critical', () => {
+    const down = svc({ state: 'STOPPED', problem: true })
+    expect(serviceAttention([down], [share({ path: '/mnt/gone/x' })], pools)).toEqual({ count: 2, level: 'crit' })
+    expect(serviceAttention([svc({})], [share({ path: '/mnt/gone/x' })], pools)).toEqual({ count: 1, level: 'warn' })
   })
 })

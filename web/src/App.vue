@@ -38,7 +38,7 @@ import { formatBytes, formatCapacity, formatRate } from './composables/format'
 import { diskBadge, diskNeedsAttention, diskTypeLabel, totalRates, zfsErrors } from './composables/useDisks'
 import { useViewMode } from './composables/useViewMode'
 import { useWide } from './composables/useWide'
-import { serviceLabel, sharesOf } from './composables/services'
+import { serviceAttention, serviceLabel, sharesOf } from './composables/services'
 import { usePanel } from './composables/usePanel'
 import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
@@ -248,6 +248,8 @@ onBeforeUnmount(() => {
   observer?.disconnect()
   window.removeEventListener('scroll', onScroll)
 })
+
+const serverAttention = computed(() => serviceAttention(services.value, shares.value, pools.value))
 
 const poolAlerts = computed(() => {
   const crit = pools.value.filter((p) => !p.healthy).length
@@ -543,6 +545,9 @@ const alertPillLabel = computed(() => {
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg>
           Server
+          <span v-if="serverAttention.count > 0" class="rail__badge" :class="`rail__badge--${serverAttention.level}`" :title="`${serverAttention.count} service or share problem(s)`">
+            {{ serverAttention.count }}
+          </span>
         </button>
         <button
 class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="activeSection === 'pools' ? 'true' : undefined"

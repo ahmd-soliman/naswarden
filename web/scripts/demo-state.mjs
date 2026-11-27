@@ -265,6 +265,7 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
       { service: 'cifs', name: 'media', path: '/mnt/tank/media', enabled: true, read_only: true },
       { service: 'cifs', name: 'documents', path: '/mnt/tank/documents', enabled: true, read_only: false },
       { service: 'cifs', name: 'scratch', path: '/mnt/gone/scratch', enabled: true, read_only: false },
+      { service: 'cifs', name: 'vault', path: '/mnt/tank/vault', enabled: true, read_only: false, locked: true },
       { service: 'nfs', name: '', path: '/mnt/fast/apps', enabled: true, read_only: false },
     ],
     stale_sources: [],

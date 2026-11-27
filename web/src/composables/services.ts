@@ -38,15 +38,26 @@ export function serviceStateText(s: Service): string {
 export const sharesOf = (shares: Share[], service: string) => shares.filter((sh) => sh.service === service)
 
 // Why a share cannot work, or '' when nothing is wrong. Only enabled shares are
-// judged: a disabled one is not served on purpose. Paths under /mnt/<pool>/ need
+// judged: a disabled one is not served on purpose. A locked dataset cannot be
+// served either. Paths under /mnt/<pool>/ need
 // that pool to exist and not be offline; other paths cannot be checked here.
 export function shareIssue(share: Share, pools: Pool[]): string {
   if (!share.enabled) return ''
   if (!share.path) return 'No path set'
+  if (share.locked) return 'Dataset is locked'
   const m = /^\/mnt\/([^/]+)/.exec(share.path)
   if (!m) return ''
   const pool = pools.find((p) => p.name === m[1])
   if (!pool) return `Pool ${m[1]} is not available`
   if (['OFFLINE', 'UNAVAIL', 'FAULTED', 'REMOVED'].includes(pool.status)) return `Pool ${m[1]} is ${pool.status.toLowerCase()}`
   return ''
+}
+
+// What the Server rail item's badge counts: services that should be running and
+// are not, plus enabled shares that cannot work. 'crit' when a service is down,
+// 'warn' when only shares are affected.
+export function serviceAttention(services: Service[], shares: Share[], pools: Pool[]): { count: number; level: 'crit' | 'warn' } {
+  const down = services.filter((s) => s.problem).length
+  const broken = shares.filter((sh) => shareIssue(sh, pools) !== '').length
+  return { count: down + broken, level: down > 0 ? 'crit' : 'warn' }
 }
