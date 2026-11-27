@@ -56,8 +56,8 @@ body {
   padding: 1.1rem;
 }
 .server-card .server-card__row.server-card__row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  display: flex;
+  flex-wrap: wrap; /* flex, not grid: a short last row stretches to the full width instead of leaving one tile alone */
   gap: 0.75rem;
 }
 .server-card .server-card__stat.server-card__stat {
@@ -67,6 +67,7 @@ body {
   padding: 0.7rem 0.9rem;
   gap: 0.35rem;
   min-width: 0;
+  flex: 1 1 135px;
 }
 .server-card .server-card__label.server-card__label {
   font-size: 0.7rem;
@@ -97,6 +98,14 @@ body {
   width: fit-content;
   padding: 0.15rem 0.55rem;
   font-size: 0.72rem;
+}
+/* Inside a narrow tile the pill stays on one line: text only, no icon */
+.server-card .update-pill {
+  white-space: nowrap;
+  max-width: 100%;
+}
+.server-card .update-pill .update-pill__icon {
+  display: none;
 }
 
 /* ---- Bars: slim, calm ----------------------------------------------------- */
@@ -263,9 +272,7 @@ button.chip.chip.chip--crit {
   font-size: 0.95rem;
   line-height: 1.4;
 }
-.server-card .server-card__row.server-card__row {
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-}
+
 
 /* Phone: the rail is a row of tabs, so undo the sidebar sizing and the sticky
    offset; keep the top bar compact. */
@@ -399,4 +406,58 @@ button.chip.chip.chip--crit {
 }
 .server-card .server-card__net > span {
   white-space: nowrap;
+}
+
+/* ---- Card headers: the name never wraps and the status never jumps -------------
+   Stack and VM cards put the status badge(s) on their own line under the name,
+   always, so every card in a row has the same shape; a long name is cut with an
+   ellipsis (the full name is in the tooltip and the detail panel). */
+.stack-card .stack-card__header.stack-card__header,
+.vm-card .vm-card__header.vm-card__header {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+.stack-card .stack-card__title.stack-card__title,
+.vm-card .vm-card__title.vm-card__title {
+  flex: none;
+  max-width: 100%;
+}
+.stack-card .stack-card__name.stack-card__name,
+.vm-card .vm-card__name.vm-card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.vm-card .vm-card__badges.vm-card__badges {
+  flex-wrap: wrap;
+}
+
+/* Dataset cards: the dataset's own name first, its parent path muted below,
+   cut at the end. The DOM keeps the full path in reading order. */
+.dataset-card .dataset-card__header.dataset-card__header {
+  align-items: flex-start;
+}
+.dataset-card .dataset-card__name.dataset-card__name {
+  display: flex;
+  flex-direction: column-reverse;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.dataset-card .dataset-card__leaf {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dataset-card .dataset-card__parent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 400;
 }

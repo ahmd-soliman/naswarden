@@ -160,6 +160,11 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
     ['syncthing', 'syncthing', 'syncthing/syncthing:2.0.11', 0.3, 64, { port: 30090 }],
     ['uptime-kuma', 'uptime-kuma', 'louislam/uptime-kuma:2.0.2', 0, 0, { state: 'exited', port: 31050 }],
     ['naswarden', 'naswarden', 'ghcr.io/ahmd-soliman/naswarden:1.1.0', 0.2, 30, { port: 30597 }],
+    ['ddns-updater', 'ddns-updater', 'qmcgaw/ddns-updater:2.9', 0, 14, { port: 30201 }],
+    ['elasticsearch', 'elasticsearch', 'elasticsearch:8.15.0', 1.5, 3100],
+    ['gitlab-cloud-runner', 'gitlab-cloud-runner', 'gitlab/gitlab-runner:v18.5', 0, 76],
+    ['nextcloud-aio', 'mastercontainer', 'nextcloud/all-in-one:latest', 0.3, 110, { port: 30210 }],
+    ['open-speed-test', 'open-speed-test', 'openspeedtest/latest', 0, 18, { port: 30215 }],
   ]
 
   return {
@@ -219,11 +224,15 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
       dataset('tank/backups', 3.3 * TB, 6 * TB),
       dataset('fast/apps', 312 * GB, 800 * GB),
       dataset('tank/documents', 214 * GB, 1 * TB),
+      dataset('tank/TimeMachine/mac2', 1.7 * TB, 3 * TB),
+      dataset('backup/tank/app-config/incus/incus-gitlab-runner/registry-cache', 891.9 * MB, 50 * GB),
     ],
     containers: apps.map((a, i) => container(now, i, ...a)),
     vms: [
       vm(now, 'ubuntu-dev', 'virtual-machine', 'Ubuntu 24.04', 'Running', 6.2, 3.1, 8, 4, '192.168.1.31'),
       vm(now, 'pihole', 'container', 'Debian 13', 'Running', 0.4, 0.2, 1, 1, '192.168.1.32', { isVM: false }),
+      vm(now, 'k8s-node-0', 'virtual-machine', 'Ubuntu 24.04', 'Running', 4.1, 5.2, 8, 4, '192.168.1.141'),
+      vm(now, 'incus-gitlab-runner', 'container', 'Debian 13', 'Running', 3.2, 1.3, 32, 12, '192.168.1.125', { isVM: false }),
       vm(now, 'windows-11', 'virtual-machine', 'Windows 11', 'Stopped', 0, 0, 16, 8, '', { manager: 'truenas' }),
     ],
     alerts: [
