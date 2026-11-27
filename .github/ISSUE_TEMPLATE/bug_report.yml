@@ -1,0 +1,84 @@
+name: Bug report
+description: Something is wrong, missing or misleading in NasWarden
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Redact** hostnames, IP addresses, serial numbers and API keys in everything you paste. Never paste a key or a Cloud Sync credential.
+        For a security problem, do not use this form: see the [security policy](https://github.com/ahmd-soliman/naswarden/security/policy).
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I am running the latest NasWarden release.
+          required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What is wrong
+      description: What did you see, and what did you expect instead? Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Disks tab
+        2. Click a disk
+        3. ...
+    validations:
+      required: false
+  - type: input
+    id: naswarden-version
+    attributes:
+      label: NasWarden version
+      description: The output of `/version`, or the image tag. Not `latest`.
+      placeholder: "v1.3.0 (commit abc1234)"
+    validations:
+      required: true
+  - type: input
+    id: truenas-version
+    attributes:
+      label: TrueNAS version
+      placeholder: "25.10.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Pools and datasets
+        - Disks
+        - Server, network, updates
+        - Docker stacks
+        - VMs and containers (TrueNAS, Incus)
+        - Data protection
+        - Prometheus metrics, rules or dashboard
+        - Web UI
+        - Setup and deployment
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and console output
+      description: The NasWarden container log and the browser console, if relevant. Redacted.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: api-reply
+    attributes:
+      label: Raw TrueNAS reply (optional)
+      description: |
+        If a panel shows wrong values, a redacted reply from a read-only call helps most, for example `midclt call pool.query` run on the NAS. Do not paste calls that return secrets.
+      render: json
+    validations:
+      required: false

@@ -77,7 +77,7 @@ Maintainers tag releases (`vX.Y.Z`); the image is built from `main` by CI. The G
 
 ## Reporting bugs and security issues
 
-For a bug, include the NasWarden version (`/version`), your TrueNAS version, and what the browser console or the NasWarden log says. Redact hostnames and keys. For a suspected security problem, do not open a public issue; contact the maintainer privately.
+For a bug, include the NasWarden version (`/version`), your TrueNAS version, and what the browser console or the NasWarden log says. Redact hostnames and keys. For a suspected security problem, do not open a public issue; follow the [security policy](SECURITY.md).
 
 ## License
 
