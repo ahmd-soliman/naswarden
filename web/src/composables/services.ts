@@ -12,7 +12,6 @@ const LABELS: Record<string, string> = {
   snmp: 'SNMP',
   smartd: 'S.M.A.R.T.',
   lldp: 'LLDP',
-  nut: 'UPS',
   webdav: 'WebDAV',
   openvpn_server: 'OpenVPN server',
   openvpn_client: 'OpenVPN client',
@@ -22,8 +21,9 @@ export const serviceLabel = (name: string) => LABELS[name] ?? name
 
 export type ServiceTone = 'ok' | 'crit' | 'gray'
 
-// Enabled-but-stopped is the problem; running is fine; anything else (a service
-// that is running without being enabled never reaches here as stopped).
+// Enabled-but-stopped is the problem, running is fine. Anything else is neutral:
+// the backend only sends services that are enabled or running, so this is a
+// state TrueNAS added that we do not know.
 export function serviceTone(s: Service): ServiceTone {
   if (s.problem) return 'crit'
   return s.state === 'RUNNING' ? 'ok' : 'gray'
