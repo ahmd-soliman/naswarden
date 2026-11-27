@@ -66,6 +66,15 @@ type Vdev struct {
 	Type     string      `json:"type"` // MIRROR / RAIDZ1 / DISK / ...
 	Status   string      `json:"status"`
 	Children []VdevChild `json:"children"`
+	// Errors is the vdev's own ZFS error count (its `stats`), which also
+	// covers errors no child could repair. Nil when TrueNAS sent no stats.
+	// Only exported to /metrics, so it stays out of the UI's JSON.
+	Errors *VdevErrors `json:"-"`
+}
+
+// VdevErrors are the read, write and checksum error counts of a vdev.
+type VdevErrors struct {
+	Read, Write, Checksum int64
 }
 
 type VdevChild struct {
@@ -99,7 +108,7 @@ type rawPool struct {
 					ChecksumErrors int64 `json:"checksum_errors"`
 				} `json:"stats"`
 			} `json:"children"`
-			Stats struct {
+			Stats *struct { // nil when TrueNAS sent none
 				ReadErrors     int64 `json:"read_errors"`
 				WriteErrors    int64 `json:"write_errors"`
 				ChecksumErrors int64 `json:"checksum_errors"`
@@ -145,6 +154,9 @@ func ListPools(ctx context.Context, c *Client) ([]Pool, error) {
 		pool.Vdevs = []Vdev{}
 		for _, vd := range rp.Topology.Data {
 			vdev := Vdev{Name: vd.Name, Type: vd.Type, Status: vd.Status, Children: []VdevChild{}}
+			if vd.Stats != nil {
+				vdev.Errors = &VdevErrors{Read: vd.Stats.ReadErrors, Write: vd.Stats.WriteErrors, Checksum: vd.Stats.ChecksumErrors}
+			}
 			if len(vd.Children) > 0 {
 				for _, ch := range vd.Children {
 					child := VdevChild{
@@ -170,8 +182,9 @@ func ListPools(ctx context.Context, c *Client) ([]Pool, error) {
 				// IS the disk.
 				child := VdevChild{
 					Disk: vd.Disk, Status: vd.Status,
-					ReadErrors: vd.Stats.ReadErrors, WriteErrors: vd.Stats.WriteErrors,
-					ChecksumErrors: vd.Stats.ChecksumErrors,
+				}
+				if vd.Stats != nil {
+					child.ReadErrors, child.WriteErrors, child.ChecksumErrors = vd.Stats.ReadErrors, vd.Stats.WriteErrors, vd.Stats.ChecksumErrors
 				}
 				if temps != nil {
 					if tempVal, ok := temps[vd.Disk]; ok {

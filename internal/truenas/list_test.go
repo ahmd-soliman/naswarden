@@ -300,3 +300,40 @@ func TestScanReadsEndTimeAndProgress(t *testing.T) {
 		t.Errorf("a running scan has no end time: %+v, %v", p.Scan, err)
 	}
 }
+
+// Trimmed copy of a real pool.query reply (TrueNAS SCALE 25.10): two mirror
+// vdevs' own `stats` sit next to their children's, a bare-disk vdev has stats
+// of its own and no children. Names and ids are replaced.
+const vdevStatsJSON = `[
+ {"name":"tank","status":"ONLINE","healthy":true,
+  "topology":{"data":[
+   {"name":"mirror-0","type":"MIRROR","status":"ONLINE",
+    "stats":{"read_errors":0,"write_errors":0,"checksum_errors":5},
+    "children":[
+     {"disk":"sda","name":"id-1","type":"DISK","status":"ONLINE","stats":{"read_errors":0,"write_errors":0,"checksum_errors":5}},
+     {"disk":"sdb","name":"id-2","type":"DISK","status":"ONLINE","stats":{"read_errors":0,"write_errors":0,"checksum_errors":0}}]},
+   {"name":"mirror-1","type":"MIRROR","status":"ONLINE","children":[{"disk":"sdc","status":"ONLINE","stats":{}}]},
+   {"name":"id-3","type":"DISK","disk":"sdd","status":"ONLINE","stats":{"read_errors":0,"write_errors":0,"checksum_errors":0}}]}}
+]`
+
+func TestListPoolsReadsTheVdevsOwnErrorCounts(t *testing.T) {
+	c := methodServer(t, map[string]string{"pool.query": vdevStatsJSON})
+	pools, err := ListPools(context.Background(), c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := pools[0].Vdevs
+	if v[0].Errors == nil || *v[0].Errors != (VdevErrors{Checksum: 5}) {
+		t.Errorf("mirror-0 errors = %+v, want checksum 5", v[0].Errors)
+	}
+	if v[1].Errors != nil {
+		t.Errorf("mirror-1 sent no stats, errors = %+v, want nil (unknown, not 0)", v[1].Errors)
+	}
+	if v[2].Errors == nil || len(v[2].Children) != 1 {
+		t.Errorf("bare-disk vdev = %+v", v[2])
+	}
+	out, _ := json.Marshal(pools[0])
+	if strings.Contains(string(out), "Errors") || strings.Contains(string(out), `"Read"`) {
+		t.Errorf("vdev errors leaked into the UI JSON: %s", out)
+	}
+}

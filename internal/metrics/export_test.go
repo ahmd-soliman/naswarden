@@ -426,3 +426,50 @@ func TestProtectionSeriesDropWhenAKindDisappears(t *testing.T) {
 		t.Errorf("no tasks should leave no series, got %d", n)
 	}
 }
+
+func TestUpdatePoolsExportsVdevErrorsForGroupVdevsOnly(t *testing.T) {
+	t.Cleanup(func() { UpdatePools(nil) })
+	UpdatePools([]truenas.Pool{
+		{Name: "tank", Vdevs: []truenas.Vdev{
+			{Name: "mirror-0", Type: "MIRROR", Errors: &truenas.VdevErrors{Read: 1, Write: 2, Checksum: 3},
+				Children: []truenas.VdevChild{{Disk: "sda"}, {Disk: "sdb"}}},
+			{Name: "mirror-1", Type: "MIRROR", Children: []truenas.VdevChild{{Disk: "sdc"}}}, // no stats sent
+			{Name: "5f0c", Type: "DISK", Errors: &truenas.VdevErrors{Checksum: 9},
+				Children: []truenas.VdevChild{{Disk: "sdd"}}}, // bare disk: disk_errors has it
+		}},
+	})
+	for typ, want := range map[string]float64{"read": 1, "write": 2, "checksum": 3} {
+		if got := gaugeValue(vdevErrors.WithLabelValues("tank", "mirror-0", typ)); got != want {
+			t.Errorf("vdev errors{%s} = %v, want %v", typ, got, want)
+		}
+	}
+	if n := seriesCount(t, vdevErrors); n != 3 {
+		t.Errorf("%d vdev error series, want 3: no stats and bare disks must have none, not 0", n)
+	}
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range families {
+		found = found || f.GetName() == "naswarden_vdev_errors"
+	}
+	if !found {
+		t.Error("naswarden_vdev_errors is not exposed: register it in init()")
+	}
+
+	UpdatePools([]truenas.Pool{{Name: "tank"}})
+	if n := seriesCount(t, vdevErrors); n != 0 {
+		t.Errorf("%d vdev error series left after the vdev went away", n)
+	}
+}
+
+func TestScanProgressNeverExceedsOneHundred(t *testing.T) {
+	t.Cleanup(func() { UpdatePools(nil) })
+	pct := 100.0004 // what a real pool reported for a scrub
+	UpdatePools([]truenas.Pool{{Name: "tank", Scan: &truenas.Scan{Function: "SCRUB", State: "IN_PROGRESS", Percentage: &pct}}})
+	if got := gaugeValue(poolScanProgress.WithLabelValues("tank", "scrub")); got != 100 {
+		t.Errorf("progress = %v, want 100", got)
+	}
+}
