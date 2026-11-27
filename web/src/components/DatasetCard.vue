@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Dataset } from '../composables/usePoolSocket'
-import PathText from './PathText.vue'
+import { splitPath } from '../composables/format'
 
 const props = defineProps<{ dataset: Dataset; active?: boolean }>()
 defineEmits<{ select: [] }>()
+
+const parts = computed(() => splitPath(props.dataset.name))
+const parent = computed(() => parts.value.parent)
+const leaf = computed(() => parts.value.leaf)
 
 const usedPercent = computed(() => {
   if (props.dataset.quota === 0) return 0
@@ -41,7 +45,10 @@ function formatBytes(bytes: number): string {
     @keydown.space.prevent="$emit('select')"
   >
     <div class="dataset-card__header">
-      <span class="dataset-card__name" :title="dataset.name"><PathText :text="dataset.name" /></span>
+      <span class="dataset-card__name" :title="dataset.name"
+        ><span v-if="parent" class="dataset-card__parent">{{ parent }}</span
+        ><span class="dataset-card__leaf">{{ leaf }}</span></span
+      >
       <span class="badge" :class="`badge--${statusColor}`">{{ usedPercent }}%</span>
     </div>
 

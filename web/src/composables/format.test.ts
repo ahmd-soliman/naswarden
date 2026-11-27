@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBitrate, formatBytes, formatCapacity, formatRate } from './format'
+import { formatBitrate, formatBytes, formatCapacity, formatRate, splitPath } from './format'
 
 describe('format', () => {
   it('formatBytes uses binary units and one decimal', () => {
@@ -26,5 +26,13 @@ describe('format', () => {
     expect(formatCapacity(500e9)).toBe('500.0 GB')
     expect(formatCapacity(512)).toBe('512 B')
     expect(formatCapacity(2e15)).toBe('2.0 PB')
+  })
+  it('splitPath keeps parent + leaf equal to the name', () => {
+    expect(splitPath('P1')).toEqual({ parent: '', leaf: 'P1' })
+    expect(splitPath('tank/media')).toEqual({ parent: 'tank/', leaf: 'media' })
+    expect(splitPath('S_BKP/P2/app-config/registry-cache')).toEqual({ parent: 'S_BKP/P2/app-config/', leaf: 'registry-cache' })
+    // a trailing slash or an empty name never produces an empty leaf
+    expect(splitPath('tank/')).toEqual({ parent: '', leaf: 'tank/' })
+    expect(splitPath('')).toEqual({ parent: '', leaf: '' })
   })
 })

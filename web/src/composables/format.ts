@@ -33,3 +33,11 @@ export function formatCapacity(bytes: number): string {
   }
   return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
 }
+
+// A dataset or path split at its last "/": the part you recognise (leaf) and the
+// path above it (parent, with its trailing slash, so parent + leaf is the name).
+export function splitPath(name: string): { parent: string; leaf: string } {
+  const i = name.lastIndexOf('/')
+  if (i < 0 || i === name.length - 1) return { parent: '', leaf: name }
+  return { parent: name.slice(0, i + 1), leaf: name.slice(i + 1) }
+}
