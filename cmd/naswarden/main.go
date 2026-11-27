@@ -281,6 +281,28 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	}
 	metrics.UpdateReplications(replications)
 
+	// Services and their SMB/NFS shares: one source, so a failure keeps both
+	// lists and flags "services" stale. Share names and paths go to the state
+	// message only, not to metrics or logs.
+	services, shares := cache.services, cache.shares
+	if freshSvc, err := truenas.ListServices(ctx, client); err != nil {
+		slog.Error("failed to refresh truenas services", "err", err)
+		stale = append(stale, "services")
+	} else if freshShares, err := truenas.ListShares(ctx, client); err != nil {
+		slog.Error("failed to refresh truenas shares", "err", err)
+		stale = append(stale, "services")
+	} else {
+		services, shares = freshSvc, freshShares
+		cache.services, cache.shares = freshSvc, freshShares
+	}
+	if services == nil {
+		services = []truenas.Service{}
+	}
+	if shares == nil {
+		shares = []truenas.Share{}
+	}
+	metrics.UpdateServices(services)
+
 	payload, err := json.Marshal(map[string]any{
 		"type": "state",
 		// When this snapshot was taken. The UI shows its age and flags it
@@ -302,6 +324,8 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		"disks":        disks,
 		"alerts":       alerts,
 		"replications": replications,
+		"services":     services,
+		"shares":       shares,
 	})
 	if err != nil {
 		slog.Error("failed to marshal state payload", "err", err)
@@ -321,6 +345,8 @@ type lastGood struct {
 	disks        []truenas.Disk
 	alerts       []truenas.Alert
 	replications []truenas.ReplicationTask
+	services     []truenas.Service
+	shares       []truenas.Share
 	docker       dockerStatus // fixed at startup; sent with every state
 }
 

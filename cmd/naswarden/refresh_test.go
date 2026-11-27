@@ -159,7 +159,7 @@ func TestRefreshNeverSendsNullLists(t *testing.T) {
 	r.run()
 
 	msg := r.next(t)
-	for _, k := range []string{"pools", "datasets", "containers", "vms", "disks", "alerts", "replications", "stale_sources"} {
+	for _, k := range []string{"pools", "datasets", "containers", "vms", "disks", "alerts", "replications", "services", "shares", "stale_sources"} {
 		if _, ok := msg[k].([]any); !ok {
 			t.Errorf("%s = %#v, want a list ([]), not null", k, msg[k])
 		}
@@ -209,5 +209,33 @@ func TestRefreshCoreFailureSendsErrorAndStaysUnhealthy(t *testing.T) {
 	r.health.ServeHTTP(rec, nil)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("healthz = %d after a failed core refresh, want 503", rec.Code)
+	}
+}
+
+func TestRefreshSendsServicesAndSharesAndKeepsThemWhenTheCallFails(t *testing.T) {
+	r := newRefreshRig(t)
+	r.tn.set("service.query", `[{"service":"cifs","enable":true,"state":"STOPPED"},{"service":"ftp","enable":false,"state":"STOPPED"}]`)
+	r.tn.set("sharing.smb.query", `[{"name":"media","path":"/mnt/tank/media","enabled":true}]`)
+	r.run()
+	first := r.next(t)
+	if svc, _ := first["services"].([]any); len(svc) != 1 {
+		t.Fatalf("services = %v, want only cifs", first["services"])
+	}
+	if sh, _ := first["shares"].([]any); len(sh) != 1 {
+		t.Fatalf("shares = %v, want 1", first["shares"])
+	}
+
+	r.tn.fail("sharing.smb.query", true)
+	r.run()
+	second := r.next(t)
+	if svc, _ := second["services"].([]any); len(svc) != 1 {
+		t.Errorf("services = %v, want the previous list kept", second["services"])
+	}
+	if sh, _ := second["shares"].([]any); len(sh) != 1 {
+		t.Errorf("shares = %v, want the previous list kept", second["shares"])
+	}
+	stale, _ := second["stale_sources"].([]any)
+	if len(stale) != 1 || stale[0] != "services" {
+		t.Errorf("stale_sources = %v, want [services]", stale)
 	}
 }

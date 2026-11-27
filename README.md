@@ -169,8 +169,9 @@ NasWarden exposes Prometheus gauges at `/metrics` for integration with Prometheu
 | `naswarden_truenas_info{version}` | Gauge | Always `1`; the label is the TrueNAS version |
 | `naswarden_replication_task_status{task_id, name, target_pool, state, job_state}` | Gauge | `1` for a task's current state |
 | `naswarden_replication_last_success_timestamp_seconds{name}` | Gauge | Unix time the task last finished successfully (remembered across failed runs) |
+| `naswarden_service_up{service}` | Gauge | `1` if the TrueNAS service (`cifs`, `nfs`, `ssh`, ...) is running, `0` if not; only services that are enabled or running |
 | `naswarden_last_refresh_success_timestamp_seconds` | Gauge | Unix time of the last successful refresh of the core TrueNAS data |
-| `naswarden_source_stale{source}` | Gauge | `1` if that source (`docker`, `truenas-vms`, `incus`, `disks`, `alerts`, `replication`) failed its last refresh and its previous data is being served |
+| `naswarden_source_stale{source}` | Gauge | `1` if that source (`docker`, `truenas-vms`, `incus`, `disks`, `alerts`, `replication`, `services`) failed its last refresh and its previous data is being served |
 
 ### Alerting Rules Examples
 

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -68,6 +69,32 @@ type ddpError struct {
 	Error   string `json:"error"`
 	Reason  string `json:"reason"`
 	Message string `json:"message"`
+}
+
+// ErrNoMethod matches (errors.Is) a call the middleware rejected because it
+// has no such method, e.g. a TrueNAS release without that API.
+var ErrNoMethod = errors.New("method not found")
+
+type callError struct {
+	msg      string
+	noMethod bool
+}
+
+func (e *callError) Error() string { return e.msg }
+func (e *callError) Is(target error) bool {
+	return target == ErrNoMethod && e.noMethod
+}
+
+func newCallError(method string, e *ddpError) error {
+	// The middleware answers ENOMETHOD ("Method ... not found"); the error
+	// text is not verified against a real box, so match the code and the
+	// wording both.
+	reason := e.String()
+	return &callError{
+		msg: fmt.Sprintf("%s: %s", method, reason),
+		noMethod: e.Error == "ENOMETHOD" ||
+			(e.Error == "" && strings.Contains(strings.ToLower(reason), "method") && strings.Contains(strings.ToLower(reason), "not found")),
+	}
 }
 
 func (e *ddpError) String() string {
@@ -202,7 +229,7 @@ func (c *Client) callOn(ctx context.Context, conn *websocket.Conn, method string
 	select {
 	case resp := <-respCh:
 		if resp.Error != nil {
-			return nil, fmt.Errorf("%s: %s", method, resp.Error.String())
+			return nil, newCallError(method, resp.Error)
 		}
 		return resp.Result, nil
 	case <-ctx.Done():

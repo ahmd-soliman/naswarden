@@ -136,6 +136,11 @@ var (
 		Help: "Unix time the replication task last finished successfully, as seen by this process.",
 	}, []string{"name"})
 
+	serviceUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_service_up",
+		Help: "1 if the TrueNAS service is running, 0 if not; only for services that are enabled or running.",
+	}, []string{"service"})
+
 	lastRefreshSuccess = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "naswarden_last_refresh_success_timestamp_seconds",
 		Help: "Unix time of the last refresh in which the core TrueNAS data (server, pools, datasets) was fetched.",
@@ -205,6 +210,7 @@ var (
 	datasetSnapSeries     = newTracked(datasetSnapshotBytes)
 	datasetRatioSeries    = newTracked(datasetCompressRatio)
 	truenasInfoSeries     = newTracked(truenasInfo)
+	serviceSeries         = newTracked(serviceUp)
 )
 
 func init() {
@@ -232,6 +238,7 @@ func init() {
 		datasetSnapshotBytes,
 		datasetCompressRatio,
 		truenasInfo,
+		serviceUp,
 		lastRefreshSuccess,
 		sourceStale,
 	)
@@ -419,8 +426,22 @@ func UpdateReplications(tasks []truenas.ReplicationTask) {
 	doneOK()
 }
 
+// UpdateServices refreshes naswarden_service_up. Only the service name (a
+// fixed middleware identifier) is a label; shares are never exported.
+func UpdateServices(services []truenas.Service) {
+	set, done := serviceSeries.begin()
+	for _, s := range services {
+		v := 0.0
+		if s.State == "RUNNING" {
+			v = 1.0
+		}
+		set(v, s.Name)
+	}
+	done()
+}
+
 // KnownSources are the optional data sources whose staleness is exported.
-var KnownSources = []string{"docker", "truenas-vms", "incus", "disks", "alerts", "replication"}
+var KnownSources = []string{"docker", "truenas-vms", "incus", "disks", "alerts", "replication", "services"}
 
 // UpdateRefresh records a completed refresh: when it happened and which
 // sources are currently serving their previous snapshot.
