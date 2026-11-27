@@ -441,7 +441,7 @@ func UpdateServices(services []truenas.Service) {
 }
 
 // KnownSources are the optional data sources whose staleness is exported.
-var KnownSources = []string{"docker", "truenas-vms", "incus", "disks", "alerts", "replication", "services", "shares"}
+var KnownSources = []string{"docker", "truenas-vms", "incus", "disks", "alerts", "replication", "services", "shares", "snapshot-tasks", "cloud-sync", "rsync", "cloud-backup"}
 
 // UpdateRefresh records a completed refresh: when it happened and which
 // sources are currently serving their previous snapshot.

@@ -312,6 +312,32 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 	services = truenas.VisibleServices(services, shares)
 	metrics.UpdateServices(services)
 
+	// Snapshot, Cloud Sync, Rsync and TrueCloud backup tasks: four sources, so
+	// a TrueNAS that lacks one (listed as empty) or fails one keeps the others
+	// fresh. Task names, paths and remotes go to the state message only.
+	protection := []truenas.ProtectionTask{}
+	// LoadLocation("") means UTC, which would be a silent wrong answer.
+	var loc *time.Location
+	if server.Timezone != "" {
+		if l, err := time.LoadLocation(server.Timezone); err == nil {
+			loc = l // without the NAS's zone, overdue cannot be judged
+		}
+	}
+	if cache.protection == nil {
+		cache.protection = map[string][]truenas.ProtectionTask{}
+	}
+	for _, src := range protectionSources {
+		fresh, err := truenas.ListProtectionTasks(ctx, client, src.kind, loc, time.Now())
+		if err != nil {
+			slog.Error("failed to refresh data protection tasks", "source", src.source, "err", err)
+			stale = append(stale, src.source)
+			fresh = cache.protection[src.kind]
+		} else {
+			cache.protection[src.kind] = fresh
+		}
+		protection = append(protection, fresh...)
+	}
+
 	payload, err := json.Marshal(map[string]any{
 		"type": "state",
 		// When this snapshot was taken. The UI shows its age and flags it
@@ -335,6 +361,7 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		"replications": replications,
 		"services":     services,
 		"shares":       shares,
+		"protection":   protection,
 	})
 	if err != nil {
 		slog.Error("failed to marshal state payload", "err", err)
@@ -356,7 +383,16 @@ type lastGood struct {
 	replications []truenas.ReplicationTask
 	services     []truenas.Service
 	shares       []truenas.Share
-	docker       dockerStatus // fixed at startup; sent with every state
+	protection   map[string][]truenas.ProtectionTask // by task kind
+	docker       dockerStatus                        // fixed at startup; sent with every state
+}
+
+// protectionSources pairs each task kind with its stale source name.
+var protectionSources = []struct{ kind, source string }{
+	{truenas.KindSnapshot, "snapshot-tasks"},
+	{truenas.KindCloudSync, "cloud-sync"},
+	{truenas.KindRsync, "rsync"},
+	{truenas.KindCloudBackup, "cloud-backup"},
 }
 
 // notifyError tells connected browsers why the core TrueNAS data could not be

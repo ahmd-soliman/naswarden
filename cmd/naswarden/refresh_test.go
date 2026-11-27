@@ -23,12 +23,19 @@ type scriptedTrueNAS struct {
 	mu      sync.Mutex
 	results map[string]string
 	failing map[string]bool
+	errors  map[string]map[string]any // method -> error reply to send
 }
 
 func (s *scriptedTrueNAS) fail(method string, on bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failing[method] = on
+}
+
+func (s *scriptedTrueNAS) setError(method string, reply map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.errors[method] = reply
 }
 
 func (s *scriptedTrueNAS) set(method, result string) {
@@ -39,7 +46,7 @@ func (s *scriptedTrueNAS) set(method, result string) {
 
 func newScriptedTrueNAS(t *testing.T) *scriptedTrueNAS {
 	t.Helper()
-	s := &scriptedTrueNAS{results: map[string]string{}, failing: map[string]bool{}}
+	s := &scriptedTrueNAS{results: map[string]string{}, failing: map[string]bool{}, errors: map[string]map[string]any{}}
 	up := websocket.Upgrader{}
 	s.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := up.Upgrade(w, r, nil)
@@ -61,11 +68,13 @@ func newScriptedTrueNAS(t *testing.T) *scriptedTrueNAS {
 				_ = conn.WriteJSON(map[string]any{"msg": "connected"})
 			case "method":
 				s.mu.Lock()
-				failing, result := s.failing[m.Method], s.results[m.Method]
+				failing, result, errReply := s.failing[m.Method], s.results[m.Method], s.errors[m.Method]
 				s.mu.Unlock()
 				switch {
 				case m.Method == "auth.login_with_api_key":
 					_ = conn.WriteJSON(map[string]any{"msg": "result", "id": m.ID, "result": true})
+				case errReply != nil:
+					_ = conn.WriteJSON(map[string]any{"msg": "result", "id": m.ID, "error": errReply})
 				case failing:
 					_ = conn.WriteJSON(map[string]any{"msg": "result", "id": m.ID, "error": map[string]any{"error": 14, "errname": "EFAULT", "reason": "boom"}})
 				default:
@@ -159,7 +168,7 @@ func TestRefreshNeverSendsNullLists(t *testing.T) {
 	r.run()
 
 	msg := r.next(t)
-	for _, k := range []string{"pools", "datasets", "containers", "vms", "disks", "alerts", "replications", "services", "shares", "stale_sources"} {
+	for _, k := range []string{"pools", "datasets", "containers", "vms", "disks", "alerts", "replications", "services", "shares", "protection", "stale_sources"} {
 		if _, ok := msg[k].([]any); !ok {
 			t.Errorf("%s = %#v, want a list ([]), not null", k, msg[k])
 		}
@@ -259,5 +268,38 @@ func TestRefreshServicesFailureKeepsSharesFresh(t *testing.T) {
 	stale, _ := msg["stale_sources"].([]any)
 	if len(stale) != 1 || stale[0] != "services" {
 		t.Errorf("stale_sources = %v, want [services]", stale)
+	}
+}
+
+func TestRefreshSendsProtectionTasksAndKeepsEachKindWhenItsCallFails(t *testing.T) {
+	r := newRefreshRig(t)
+	r.tn.set("pool.snapshottask.query", `[{"id":1,"dataset":"tank/a","enabled":true,"state":{"state":"FINISHED","datetime":{"$date":1700000000000}}}]`)
+	r.tn.set("rsynctask.query", `[{"id":2,"desc":"off","path":"/mnt/tank/a","enabled":false,"job":null}]`)
+	r.run()
+	first := r.next(t)
+	if p, _ := first["protection"].([]any); len(p) != 2 {
+		t.Fatalf("protection = %v, want the snapshot and the rsync task", first["protection"])
+	}
+
+	r.tn.fail("rsynctask.query", true)
+	r.tn.set("cloudsync.query", `[{"id":3,"description":"c","path":"/mnt/tank/c","enabled":true,"job":null}]`)
+	r.run()
+	second := r.next(t)
+	if p, _ := second["protection"].([]any); len(p) != 3 {
+		t.Errorf("protection = %v, want the old rsync task kept and the new cloud sync task", second["protection"])
+	}
+	stale, _ := second["stale_sources"].([]any)
+	if len(stale) != 1 || stale[0] != "rsync" {
+		t.Errorf("stale_sources = %v, want [rsync] only", stale)
+	}
+}
+
+func TestRefreshProtectionMethodMissingIsEmptyNotStale(t *testing.T) {
+	r := newRefreshRig(t)
+	r.tn.setError("cloud_backup.query", map[string]any{"error": 32, "errname": "ENOMETHOD", "reason": "Method 'query' not found in 'cloud_backup'"})
+	r.run()
+	msg := r.next(t)
+	if stale, _ := msg["stale_sources"].([]any); len(stale) != 0 {
+		t.Errorf("stale_sources = %v, want none: a method this TrueNAS lacks is just empty", stale)
 	}
 }
