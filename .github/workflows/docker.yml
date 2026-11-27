@@ -63,6 +63,12 @@ jobs:
     needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # id-token + attestations: sign the build provenance (see the attest step).
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
 
@@ -93,7 +99,8 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           build-args: |
@@ -101,5 +108,16 @@ jobs:
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.ver.outputs.date }}
           push: true
+          # BuildKit's own unsigned attestation shows up as an
+          # unknown/unknown platform entry; the signed one below replaces it.
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # Signed SLSA provenance, verifiable with:
+      #   gh attestation verify oci://ghcr.io/<repo>:<tag> -R <repo>
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
