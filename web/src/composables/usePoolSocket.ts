@@ -213,6 +213,23 @@ export interface ReplicationTask {
   enabled: boolean
 }
 
+// A TrueNAS service that is enabled or running (the backend drops the rest).
+export interface Service {
+  name: string // middleware name: "cifs", "nfs", "ssh", ...
+  state: string // "RUNNING" | "STOPPED"
+  enable: boolean // start on boot
+  problem: boolean // enabled but not running
+}
+
+export interface Share {
+  service: string // the Service.name it belongs to: "cifs" | "nfs"
+  name: string
+  path: string // '' when TrueNAS gave none
+  enabled: boolean
+  read_only: boolean
+  locked?: boolean // its dataset is locked, so it cannot be served
+}
+
 // Whether and how NasWarden reads Docker, fixed at backend startup:
 // - off: nothing configured or mounted (the "Docker not connected" card)
 // - on: access says how (shown in the footer) -- socket (full access),
@@ -242,6 +259,8 @@ interface StateMessage {
   disks?: Disk[] | null
   alerts?: Alert[] | null
   replications?: ReplicationTask[] | null
+  services?: Service[] | null // absent from backends older than the services source
+  shares?: Share[] | null
   docker?: DockerStatus // absent from backends older than 1.1.0
 }
 
@@ -259,6 +278,8 @@ export function usePoolSocket() {
   const disks = ref<Disk[]>([])
   const alerts = ref<Alert[]>([])
   const replications = ref<ReplicationTask[]>([])
+  const services = ref<Service[]>([])
+  const shares = ref<Share[]>([])
   const connected = ref(false)
   const updatedAt = ref<number | null>(null)
   const serverError = ref<string | null>(null)
@@ -297,6 +318,8 @@ export function usePoolSocket() {
         disks.value = msg.disks ?? []
         alerts.value = msg.alerts ?? []
         replications.value = msg.replications ?? []
+        services.value = msg.services ?? []
+        shares.value = msg.shares ?? []
         updatedAt.value = msg.updated_at ?? null
         staleSources.value = msg.stale_sources ?? []
       }
@@ -325,6 +348,8 @@ export function usePoolSocket() {
     disks,
     alerts,
     replications,
+    services,
+    shares,
     connected,
     updatedAt,
     staleSources,

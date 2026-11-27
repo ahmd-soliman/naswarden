@@ -20,6 +20,8 @@ import VMDetails from './components/VMDetails.vue'
 import ContainerDetails from './components/ContainerDetails.vue'
 import StackDetails from './components/StackDetails.vue'
 import AlertsDetails from './components/AlertsDetails.vue'
+import ServicesRow from './components/ServicesRow.vue'
+import ServiceDetails from './components/ServiceDetails.vue'
 import DiskDetails from './components/DiskDetails.vue'
 import TempRange from './components/TempRange.vue'
 import ListTable from './components/ListTable.vue'
@@ -28,7 +30,7 @@ import ViewToggle from './components/ViewToggle.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
 import { useTheme } from './composables/useTheme'
 import { usePoolSocket } from './composables/usePoolSocket'
-import type { Alert, Container, Dataset, Disk, Pool, ServerInfo, VM } from './composables/usePoolSocket'
+import type { Alert, Container, Dataset, Disk, Pool, ServerInfo, Service, VM } from './composables/usePoolSocket'
 import { buildStacks, containerIconCandidates, iconCandidates, isCleanStop, isStopped, memberBadge, stackBadgeLabel } from './composables/useStacks'
 import type { Stack } from './composables/useStacks'
 import { vmIconCandidates } from './composables/useVMs'
@@ -36,6 +38,7 @@ import { formatBytes, formatCapacity, formatRate } from './composables/format'
 import { diskBadge, diskNeedsAttention, diskTypeLabel, totalRates, zfsErrors } from './composables/useDisks'
 import { useViewMode } from './composables/useViewMode'
 import { useWide } from './composables/useWide'
+import { serviceAttention, serviceLabel, sharesOf } from './composables/services'
 import { usePanel } from './composables/usePanel'
 import { matchesContainer, matchesDataset, matchesDisk, matchesPool, matchesStack, matchesVM, normalizeQuery } from './composables/search'
 
@@ -49,6 +52,8 @@ const {
   disks,
   alerts,
   replications,
+  services,
+  shares,
   connected,
   updatedAt,
   staleSources,
@@ -244,6 +249,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
 })
 
+const serverAttention = computed(() => serviceAttention(services.value, shares.value, pools.value))
+
 const poolAlerts = computed(() => {
   const crit = pools.value.filter((p) => !p.healthy).length
   const warn = pools.value.filter((p) => p.healthy && p.warning).length
@@ -300,6 +307,7 @@ type Selected =
   | { kind: 'container'; data: Container; fromStack?: string }
   | { kind: 'disk'; data: Disk }
   | { kind: 'alerts'; data: Alert[] }
+  | { kind: 'service'; data: Service }
 
 type SelectionTarget =
   | { kind: 'server' }
@@ -310,6 +318,7 @@ type SelectionTarget =
   | { kind: 'container'; name: string; fromStack?: string }
   | { kind: 'disk'; name: string }
   | { kind: 'alerts' }
+  | { kind: 'service'; name: string }
 
 const selectedTarget = ref<SelectionTarget | null>(null)
 
@@ -335,6 +344,8 @@ function findLive(t: SelectionTarget): SelectedData | undefined {
       return disks.value.find((d) => d.name === t.name)
     case 'alerts':
       return activeAlerts.value
+    case 'service':
+      return services.value.find((s) => s.name === t.name)
   }
 }
 
@@ -343,7 +354,7 @@ function findLive(t: SelectionTarget): SelectedData | undefined {
 // watcher rather than inside the computed below, which must stay pure.
 let lastLive: { key: string; data: SelectedData } | null = null
 watch(
-  [selectedTarget, server, pools, datasets, vms, disks, stacks, containers],
+  [selectedTarget, server, pools, datasets, vms, disks, stacks, containers, services],
   () => {
     const t = selectedTarget.value
     if (!t) {
@@ -371,6 +382,7 @@ const drawerTitle = computed(() => {
   if (!selected.value) return ''
   if (selected.value.kind === 'server') return selected.value.data.hostname
   if (selected.value.kind === 'alerts') return 'System Alerts'
+  if (selected.value.kind === 'service') return serviceLabel(selected.value.data.name)
   return selected.value.data.name
 })
 const drawerBack = computed(() =>
@@ -533,6 +545,9 @@ const alertPillLabel = computed(() => {
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/></svg>
           Server
+          <span v-if="serverAttention.count > 0" class="rail__badge" :class="`rail__badge--${serverAttention.level}`" :title="`${serverAttention.count} service or share problem(s)`">
+            {{ serverAttention.count }}
+          </span>
         </button>
         <button
 class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="activeSection === 'pools' ? 'true' : undefined"
@@ -630,6 +645,13 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
               :server="server"
               :active="selectedTarget?.kind === 'server'"
               @select="toggle({ kind: 'server' }, selectedTarget?.kind === 'server')"
+            />
+          </ErrorBoundary>
+          <ErrorBoundary v-if="services.length > 0" label="the services" :reset-key="updatedAt">
+            <ServicesRow
+              :services="services"
+              :active="selectedTarget?.kind === 'service' ? selectedTarget.name : undefined"
+              @select="(name: string) => toggle({ kind: 'service', name }, isOpen({ kind: 'service', name }))"
             />
           </ErrorBoundary>
         </section>
@@ -835,6 +857,12 @@ class="rail__item rail__item--pool" :class="railClass('pools')" :aria-current="a
         <AlertsDetails
           v-else-if="selected?.kind === 'alerts'"
           :alerts="selected.data"
+        />
+        <ServiceDetails
+          v-else-if="selected?.kind === 'service'"
+          :service="selected.data"
+          :shares="sharesOf(shares, selected.data.name)"
+          :pools="pools"
         />
       </ErrorBoundary>
     </DetailDrawer>
