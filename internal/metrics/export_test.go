@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -349,5 +350,79 @@ func TestUpdateServicesOnlyServiceNameLabel(t *testing.T) {
 	UpdateServices(nil)
 	if n := seriesCount(t, serviceUp); n != 0 {
 		t.Fatalf("a service that is no longer shown must drop its series, got %d", n)
+	}
+}
+
+func TestUpdateProtectionCountsByKindAndState(t *testing.T) {
+	t.Cleanup(func() { UpdateProtection(nil) })
+	UpdateProtection([]truenas.ProtectionTask{
+		{Kind: "snapshot", Name: "tank/secret-dataset", State: "OK"},
+		{Kind: "snapshot", Name: "tank/b", State: "OK"},
+		{Kind: "snapshot", Name: "tank/c", State: "FAILED"},
+		{Kind: "cloudsync", Name: "Photos to cloud", State: "OK", Overdue: true},
+		{Kind: "cloudsync", Name: "off", State: "DISABLED"},
+	})
+	for _, c := range []struct {
+		kind, state string
+		want        float64
+	}{
+		{"snapshot", "OK", 2}, {"snapshot", "FAILED", 1}, {"snapshot", "RUNNING", 0},
+		{"cloudsync", "OK", 1}, {"cloudsync", "DISABLED", 1}, {"cloudsync", "FAILED", 0},
+	} {
+		if got := gaugeValue(protectionTasks.WithLabelValues(c.kind, c.state)); got != c.want {
+			t.Errorf("tasks{%s,%s} = %v, want %v", c.kind, c.state, got, c.want)
+		}
+	}
+	if got := gaugeValue(protectionOverdue.WithLabelValues("cloudsync")); got != 1 {
+		t.Errorf("overdue{cloudsync} = %v, want 1", got)
+	}
+	if got := gaugeValue(protectionOverdue.WithLabelValues("snapshot")); got != 0 {
+		t.Errorf("overdue{snapshot} = %v, want 0", got)
+	}
+	// Two kinds present, six states each; no series for a kind without tasks.
+	if n := seriesCount(t, protectionTasks); n != 12 {
+		t.Errorf("task series = %d, want 12", n)
+	}
+
+	// Names never reach /metrics.
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	for _, f := range families {
+		if !strings.HasPrefix(f.GetName(), "naswarden_protection_") {
+			continue
+		}
+		seen = true // also proves both are registered
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() != "kind" && l.GetName() != "state" {
+					t.Errorf("%s has label %q: only kind and state are allowed", f.GetName(), l.GetName())
+				}
+				if strings.Contains(l.GetValue(), "secret") || strings.Contains(l.GetValue(), "Photos") {
+					t.Errorf("%s leaks a task name in %q", f.GetName(), l.GetValue())
+				}
+			}
+		}
+	}
+	if !seen {
+		t.Error("naswarden_protection_* is not exposed: register it in init()")
+	}
+}
+
+func TestProtectionSeriesDropWhenAKindDisappears(t *testing.T) {
+	t.Cleanup(func() { UpdateProtection(nil) })
+	UpdateProtection([]truenas.ProtectionTask{{Kind: "rsync", State: "OK"}, {Kind: "snapshot", State: "OK"}})
+	UpdateProtection([]truenas.ProtectionTask{{Kind: "snapshot", State: "OK"}})
+	if n := seriesCount(t, protectionTasks); n != 6 {
+		t.Errorf("task series = %d, want 6 once rsync is gone", n)
+	}
+	if n := seriesCount(t, protectionOverdue); n != 1 {
+		t.Errorf("overdue series = %d, want 1", n)
+	}
+	UpdateProtection(nil)
+	if n := seriesCount(t, protectionTasks); n != 0 {
+		t.Errorf("no tasks should leave no series, got %d", n)
 	}
 }

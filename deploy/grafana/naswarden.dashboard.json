@@ -1,7 +1,7 @@
 {
   "uid": "naswarden-overview",
   "title": "NasWarden - TrueNAS overview",
-  "description": "Health, storage, disks, alerts and replication from NasWarden's /metrics. Imported by NasWarden (deploy/grafana/naswarden.dashboard.json).",
+  "description": "Health, storage, disks, alerts, replication and data protection from NasWarden's /metrics. Imported by NasWarden (deploy/grafana/naswarden.dashboard.json).",
   "tags": [
     "naswarden",
     "truenas"
@@ -1609,13 +1609,101 @@
       }
     },
     {
+      "id": 31,
+      "type": "row",
+      "title": "Data protection",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 71,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Failed and overdue tasks",
+      "description": "Snapshot, Cloud Sync, Rsync and TrueCloud backup tasks by kind. Counts only: NasWarden's Data protection section says which task.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (kind) (naswarden_protection_tasks{state=\"FAILED\"})",
+          "legendFormat": "failed {{kind}}",
+          "refId": "A",
+          "editorMode": "code"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (kind) (naswarden_protection_overdue_tasks)",
+          "legendFormat": "overdue {{kind}}",
+          "refId": "B",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "id": 20,
       "type": "row",
       "title": "NasWarden itself",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 79,
         "w": 24,
         "h": 1
       },
@@ -1632,7 +1720,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 80,
         "w": 24,
         "h": 6
       },

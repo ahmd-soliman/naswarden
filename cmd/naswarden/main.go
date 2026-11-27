@@ -338,6 +338,8 @@ func refresh(client *truenas.Client, dockerClient *docker.Client, incusClient *i
 		protection = append(protection, fresh...)
 	}
 
+	metrics.UpdateProtection(protection)
+
 	payload, err := json.Marshal(map[string]any{
 		"type": "state",
 		// When this snapshot was taken. The UI shows its age and flags it

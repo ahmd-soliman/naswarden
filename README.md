@@ -169,6 +169,8 @@ NasWarden exposes Prometheus gauges at `/metrics` for integration with Prometheu
 | `naswarden_truenas_info{version}` | Gauge | Always `1`; the label is the TrueNAS version |
 | `naswarden_replication_task_status{task_id, name, target_pool, state, job_state}` | Gauge | `1` for a task's current state |
 | `naswarden_replication_last_success_timestamp_seconds{name}` | Gauge | Unix time the task last finished successfully (remembered across failed runs) |
+| `naswarden_protection_tasks{kind, state}` | Gauge | Number of snapshot, Cloud Sync, Rsync and TrueCloud backup tasks per kind (`snapshot`, `cloudsync`, `rsync`, `cloud_backup`) and state (`OK`, `RUNNING`, `FAILED`, `NEVER`, `DISABLED`, `UNKNOWN`); a kind with no tasks has no series. Counts only: task names, paths and remotes are never exported |
+| `naswarden_protection_overdue_tasks{kind}` | Gauge | Tasks whose last run succeeded but that missed a scheduled run since |
 | `naswarden_service_up{service}` | Gauge | `1` if the TrueNAS service (`cifs`, `nfs`, `ssh`, ...) is running, `0` if not; only services that are running, set to start on boot, or have enabled shares |
 | `naswarden_last_refresh_success_timestamp_seconds` | Gauge | Unix time of the last successful refresh of the core TrueNAS data |
 | `naswarden_source_stale{source}` | Gauge | `1` if that source (`docker`, `truenas-vms`, `incus`, `disks`, `alerts`, `replication`, `services`, `shares`, `snapshot-tasks`, `cloud-sync`, `rsync`, `cloud-backup`) failed its last refresh and its previous data is being served |
@@ -198,11 +200,11 @@ naswarden_container_up{stack="media", container="jellyfin"} == 0
 
 #### 5. Ready-made rules
 
-`deploy/prometheus/naswarden.rules.yml` contains 14 rules covering NasWarden itself (refresh stale for 3 min, a source not updating for 5 min, not scraped), TrueNAS (critical alerts, unresolved warnings, degraded pool, disk over 55 C / 60 C, an enabled service that is stopped) and replication (task failed, no success for 26 h). Add it to `rule_files` and adjust thresholds to taste. Validate with `promtool check rules deploy/prometheus/naswarden.rules.yml`.
+`deploy/prometheus/naswarden.rules.yml` contains 16 rules covering NasWarden itself (refresh stale for 3 min, a source not updating for 5 min, not scraped), TrueNAS (critical alerts, unresolved warnings, degraded pool, disk over 55 C / 60 C, an enabled service that is stopped) replication (task failed, no success for 26 h) and data protection (a snapshot, Cloud Sync, Rsync or backup task failed or missed a run). Add it to `rule_files` and adjust thresholds to taste. Validate with `promtool check rules deploy/prometheus/naswarden.rules.yml`.
 
 #### 6. Grafana dashboard
 
-`deploy/grafana/naswarden.dashboard.json` is a ready-made dashboard (uid `naswarden-overview`, 24 panels): health at a glance, pool and dataset usage, capacity trends, disk temperatures, TrueNAS alerts, replication status, containers that are down, TrueNAS services and per-source freshness. It uses a `datasource` variable, so it works with any Prometheus datasource that scrapes NasWarden.
+`deploy/grafana/naswarden.dashboard.json` is a ready-made dashboard (uid `naswarden-overview`, 25 panels): health at a glance, pool and dataset usage, capacity trends, disk temperatures, TrueNAS alerts, replication status, failed and overdue data protection tasks, containers that are down, TrueNAS services and per-source freshness. It uses a `datasource` variable, so it works with any Prometheus datasource that scrapes NasWarden.
 
 Import it in the UI (**Dashboards -> New -> Import**, then pick your Prometheus datasource), or through the API:
 

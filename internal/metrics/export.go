@@ -136,6 +136,18 @@ var (
 		Help: "Unix time the replication task last finished successfully, as seen by this process.",
 	}, []string{"name"})
 
+	// Data protection tasks are counted, never named: task names, datasets,
+	// paths and remotes stay out of /metrics.
+	protectionTasks = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_protection_tasks",
+		Help: "Snapshot, Cloud Sync, Rsync and TrueCloud backup tasks by kind and state (OK, RUNNING, FAILED, NEVER, DISABLED, UNKNOWN). A kind with no tasks has no series.",
+	}, []string{"kind", "state"})
+
+	protectionOverdue = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "naswarden_protection_overdue_tasks",
+		Help: "Tasks whose last run succeeded but that missed a scheduled run since, by kind.",
+	}, []string{"kind"})
+
 	serviceUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "naswarden_service_up",
 		Help: "1 if the TrueNAS service is running, 0 if not; only for services that are running, set to start on boot, or have enabled shares.",
@@ -211,6 +223,8 @@ var (
 	datasetRatioSeries    = newTracked(datasetCompressRatio)
 	truenasInfoSeries     = newTracked(truenasInfo)
 	serviceSeries         = newTracked(serviceUp)
+	protectionSeries      = newTracked(protectionTasks)
+	protectionLateSeries  = newTracked(protectionOverdue)
 )
 
 func init() {
@@ -238,6 +252,8 @@ func init() {
 		datasetSnapshotBytes,
 		datasetCompressRatio,
 		truenasInfo,
+		protectionTasks,
+		protectionOverdue,
 		serviceUp,
 		lastRefreshSuccess,
 		sourceStale,
@@ -424,6 +440,37 @@ func UpdateReplications(tasks []truenas.ReplicationTask) {
 	}
 	done()
 	doneOK()
+}
+
+// protectionStates are every state a task can be in, so that a kind's series
+// are always all present (0 when none): a rule or panel never has to cope with
+// a missing series.
+var protectionStates = []string{truenas.TaskOK, truenas.TaskRunning, truenas.TaskFailed, truenas.TaskNever, truenas.TaskDisabled, truenas.TaskUnknown}
+
+// UpdateProtection refreshes the task counts. Only the kind and state (fixed
+// names) are labels.
+func UpdateProtection(tasks []truenas.ProtectionTask) {
+	counts := map[string]map[string]int{}
+	late := map[string]int{}
+	for _, t := range tasks {
+		if counts[t.Kind] == nil {
+			counts[t.Kind] = map[string]int{}
+		}
+		counts[t.Kind][t.State]++
+		if t.Overdue {
+			late[t.Kind]++
+		}
+	}
+	set, done := protectionSeries.begin()
+	setLate, doneLate := protectionLateSeries.begin()
+	for kind, byState := range counts {
+		for _, st := range protectionStates {
+			set(float64(byState[st]), kind, st)
+		}
+		setLate(float64(late[kind]), kind)
+	}
+	done()
+	doneLate()
 }
 
 // UpdateServices refreshes naswarden_service_up. Only the service name (a

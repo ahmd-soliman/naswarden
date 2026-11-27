@@ -124,3 +124,25 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: "Replication task {{ $labels.name }} has not succeeded for {{ $value | humanizeDuration }}"
+
+  # Snapshot, Cloud Sync, Rsync and TrueCloud backup tasks, counted per kind:
+  # /metrics never carries task names, so open NasWarden's Data protection
+  # section (or TrueNAS) to see which one.
+  - name: naswarden-protection
+    rules:
+      - alert: ProtectionTaskFailed
+        expr: naswarden_protection_tasks{state="FAILED"} > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $value }} {{ $labels.kind }} task(s) failed on the last run"
+          description: "Open the Data protection section in NasWarden for which task and the error."
+
+      # Last run fine, but a scheduled run since then never happened.
+      - alert: ProtectionTaskOverdue
+        expr: naswarden_protection_overdue_tasks > 0
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $value }} {{ $labels.kind }} task(s) missed a scheduled run"
+          description: "Open the Data protection section in NasWarden for which task."
