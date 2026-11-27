@@ -25,8 +25,14 @@ describe('diskBadge', () => {
   it('flags ZFS errors', () => {
     const d = disk({ checksum_errors: 2 })
     expect(zfsErrors(d)).toBe(2)
-    expect(diskBadge(d)).toMatchObject({ label: 'errors', tone: 'warn' })
+    expect(diskBadge(d)).toMatchObject({ label: '2 errors', tone: 'warn' })
   })
+  it('counts read, write and checksum errors together, singular for one', () => {
+    expect(diskBadge(disk({ read_errors: 1 })).label).toBe('1 error')
+    expect(diskBadge(disk({ read_errors: 1, write_errors: 1, checksum_errors: 1 })).label).toBe('3 errors')
+  })
+  it('keeps the error count next to a bad pool status', () =>
+    expect(diskBadge(disk({ status: 'DEGRADED', checksum_errors: 5 }))).toMatchObject({ label: 'degraded · 5 errors', tone: 'crit' }))
   it('treats standby as neutral, not a problem', () => {
     const d = disk({ standby: true, temp_c: undefined })
     expect(diskBadge(d)).toMatchObject({ label: 'standby', tone: 'gray' })

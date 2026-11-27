@@ -92,7 +92,6 @@ function formatRelativeTime(ts: number): string {
   background: var(--card-bg);
   border: 1px solid var(--border);
   --accent: var(--pool);
-  border-top: 3px solid var(--accent);
   border-radius: 10px;
   padding: 1rem 1.25rem;
   display: flex;

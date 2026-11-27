@@ -459,8 +459,10 @@ const containerColumns: Column<Container>[] = [
 ]
 const dockedOpen = computed(() => wide.value && selected.value !== null)
 const TONE_ORDER: Record<string, number> = { crit: 0, warn: 1, ok: 2, gray: 3 }
-// Model and Type give way when the detail panel is docked, so the columns that
-// matter (temperature, rates, errors, status) stay on screen without scrolling.
+// Model, Type and ZFS errors give way when the detail panel is docked, so the
+// columns that matter (temperature, rates, status) stay on screen without
+// scrolling. Errors are not lost: the status reads e.g. "3 errors", the summary above
+// totals them and the panel lists them.
 const diskColumns = computed<Column<Disk>[]>(() => {
   const cols: Column<Disk>[] = [
     { key: 'name', label: 'Disk', value: (d) => d.name },
@@ -474,7 +476,7 @@ const diskColumns = computed<Column<Disk>[]>(() => {
     { key: 'errors', label: 'ZFS errors', value: (d) => zfsErrors(d), align: 'right' },
     { key: 'status', label: 'Status', value: (d) => TONE_ORDER[diskBadge(d).tone] },
   ]
-  return dockedOpen.value ? cols.filter((c) => c.key !== 'model' && c.key !== 'type') : cols
+  return dockedOpen.value ? cols.filter((c) => !['model', 'type', 'errors'].includes(c.key)) : cols
 })
 const diskActive = (d: Disk) => selectedTarget.value?.kind === 'disk' && selectedTarget.value.name === d.name
 const hottestDisk = computed(() => Math.max(-Infinity, ...disks.value.map((d) => d.temp_c ?? -Infinity)))
@@ -507,7 +509,7 @@ const alertPillLabel = computed(() => {
     <header class="app__topbar">
       <div class="app__brand">
         <img src="/favicon.svg" alt="" class="app__logo" />
-        <h1>NasWarden</h1>
+        <h1 class="app__title">NasWarden</h1>
       </div>
       <SearchBox v-model="query" class="app__search" />
       <div class="topbar-actions">

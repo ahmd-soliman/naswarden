@@ -16,8 +16,11 @@ const toneClass: Record<Tone, string> = { ok: 'badge--green', warn: 'badge--yell
 // needs attention; a sleeping drive is neutral, not a problem.
 export function diskBadge(d: Disk): { cls: string; label: string; tone: Tone } {
   const mk = (tone: Tone, label: string) => ({ cls: toneClass[tone], label, tone })
-  if (d.status && d.status !== 'ONLINE') return mk('crit', d.status.toLowerCase())
-  if (zfsErrors(d) > 0) return mk('warn', 'errors')
+  const errors = zfsErrors(d)
+  const errorText = `${errors} ${errors === 1 ? 'error' : 'errors'}`
+  // The count rides along with a bad pool status too: the table drops its errors column when the panel is docked.
+  if (d.status && d.status !== 'ONLINE') return mk('crit', errors > 0 ? `${d.status.toLowerCase()} · ${errorText}` : d.status.toLowerCase())
+  if (errors > 0) return mk('warn', errorText)
   if (d.standby) return mk('gray', 'standby')
   return mk('ok', 'healthy')
 }
