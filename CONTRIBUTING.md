@@ -40,6 +40,17 @@ cd web && npm run lint && npm test && npm run build
 
 `internal/web/dist` is **committed**. If you change `web/`, run `npm run build` and commit the result; CI fails when it is out of date. If you change the UI visibly, `npm run screenshots` in `web/` refreshes the README screenshots (demo data, no real system).
 
+## Working on the UI
+
+The UI has a demo mode: a made-up TrueNAS ([`web/scripts/demo-state.mjs`](web/scripts/demo-state.mjs)), so you need no real system and no Go backend. Run these in `web/`:
+
+| Command | What it does |
+| --- | --- |
+| `npm run demo` | Starts a local server at <http://localhost:5199> with demo data and keeps running (Ctrl+C to stop). Open it in any browser to look at your change, in both themes and at phone and tablet widths. |
+| `npm run screenshots` | Refreshes the README screenshots from the same demo server. |
+
+Chromium is needed once for the screenshots: `npx playwright install --only-shell chromium`. Both commands share one fake backend, [`web/scripts/demo-server.mjs`](web/scripts/demo-server.mjs); extend that rather than adding mocks to a script.
+
 ## Tests come from real responses
 
 TrueNAS replies differ from the documentation more often than you would expect (fields that are `null`, numbers sent as strings, values above 100%). So:
