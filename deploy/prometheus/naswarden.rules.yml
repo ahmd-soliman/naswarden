@@ -84,15 +84,17 @@ groups:
   - name: naswarden-zfs
     rules:
       # ZFS counters since the pool was imported; any increase is a disk
-      # worth checking, long before the pool reports DEGRADED.
+      # worth checking, long before the pool reports DEGRADED. delta, not
+      # increase: these are gauges, and increase() would read a drop (after
+      # a zpool clear) as a counter reset and count the new value as errors.
       - alert: ZFSDiskErrors
-        expr: increase(naswarden_disk_errors[1h]) > 0
+        expr: delta(naswarden_disk_errors[1h]) > 0
         labels: {severity: warning}
         annotations:
           summary: "Disk {{ $labels.disk }} ({{ $labels.pool }}) logged {{ $value }} new {{ $labels.type }} error(s) in the last hour"
 
       - alert: ZFSVdevErrors
-        expr: increase(naswarden_vdev_errors[1h]) > 0
+        expr: delta(naswarden_vdev_errors[1h]) > 0
         labels: {severity: warning}
         annotations:
           summary: "Vdev {{ $labels.vdev }} ({{ $labels.pool }}) logged {{ $value }} new {{ $labels.type }} error(s) in the last hour"

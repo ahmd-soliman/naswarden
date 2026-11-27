@@ -1185,7 +1185,7 @@
       "id": 23,
       "type": "timeseries",
       "title": "Disk errors in the last hour",
-      "description": "ZFS read, write and checksum errors per pool member disk. Any line above 0 deserves a look; the counters reset when the pool is imported.",
+      "description": "ZFS read, write and checksum errors per pool member disk. Any line above 0 deserves a look; the counters reset when the pool is imported, and a drop (after a clear) is not shown.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1202,19 +1202,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (pool, disk, type) (increase(naswarden_disk_errors[1h])) > 0",
+          "expr": "sum by (pool, disk, type) (delta(naswarden_disk_errors[1h])) > 0",
           "legendFormat": "{{pool}} / {{disk}} ({{type}})",
           "refId": "A",
-          "editorMode": "code"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum by (pool, vdev, type) (increase(naswarden_vdev_errors[1h])) > 0",
-          "legendFormat": "{{pool}} / {{vdev}} vdev ({{type}})",
-          "refId": "B",
           "editorMode": "code"
         }
       ],
@@ -1306,6 +1296,58 @@
       }
     },
     {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Vdev errors in the last hour",
+      "description": "ZFS read, write and checksum errors of a mirror or RAIDZ vdev itself (not its disks). Any line above 0 deserves a look; bare-disk vdevs are in the disk panel above.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (pool, vdev, type) (delta(naswarden_vdev_errors[1h])) > 0",
+          "legendFormat": "{{pool}} / {{vdev}} ({{type}})",
+          "refId": "A",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
       "id": 25,
       "type": "timeseries",
       "title": "Pool fragmentation",
@@ -1316,7 +1358,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 53,
         "w": 12,
         "h": 8
       },
@@ -1370,7 +1412,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 48,
+        "y": 53,
         "w": 12,
         "h": 8
       },
@@ -1440,7 +1482,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 56,
+        "y": 61,
         "w": 16,
         "h": 8
       },
@@ -1491,7 +1533,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 56,
+        "y": 61,
         "w": 8,
         "h": 8
       },
@@ -1537,7 +1579,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 64,
+        "y": 69,
         "w": 24,
         "h": 1
       },
@@ -1554,7 +1596,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 70,
         "w": 24,
         "h": 6
       },
@@ -1625,7 +1667,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 76,
         "w": 24,
         "h": 1
       },
@@ -1642,7 +1684,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 77,
         "w": 24,
         "h": 7
       },
@@ -1713,7 +1755,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 79,
+        "y": 84,
         "w": 24,
         "h": 1
       },
@@ -1730,7 +1772,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 80,
+        "y": 85,
         "w": 24,
         "h": 6
       },
