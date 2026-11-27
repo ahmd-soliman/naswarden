@@ -434,6 +434,8 @@ func TestUpdatePoolsExportsVdevErrorsForGroupVdevsOnly(t *testing.T) {
 			{Name: "mirror-0", Type: "MIRROR", Errors: &truenas.VdevErrors{Read: 1, Write: 2, Checksum: 3},
 				Children: []truenas.VdevChild{{Disk: "sda"}, {Disk: "sdb"}}},
 			{Name: "mirror-1", Type: "MIRROR", Children: []truenas.VdevChild{{Disk: "sdc"}}}, // no stats sent
+			{Name: "raidz1-0", Type: "RAIDZ1", Errors: &truenas.VdevErrors{Checksum: 1},
+				Children: []truenas.VdevChild{{Disk: "sde"}, {Disk: "sdf"}, {Disk: "sdg"}}}, // assumed TrueNAS naming, not seen on a real box
 			{Name: "5f0c", Type: "DISK", Errors: &truenas.VdevErrors{Checksum: 9},
 				Children: []truenas.VdevChild{{Disk: "sdd"}}}, // bare disk: disk_errors has it
 		}},
@@ -443,8 +445,11 @@ func TestUpdatePoolsExportsVdevErrorsForGroupVdevsOnly(t *testing.T) {
 			t.Errorf("vdev errors{%s} = %v, want %v", typ, got, want)
 		}
 	}
-	if n := seriesCount(t, vdevErrors); n != 3 {
-		t.Errorf("%d vdev error series, want 3: no stats and bare disks must have none, not 0", n)
+	if got := gaugeValue(vdevErrors.WithLabelValues("tank", "raidz1-0", "checksum")); got != 1 {
+		t.Errorf("raidz vdev checksum = %v, want 1", got)
+	}
+	if n := seriesCount(t, vdevErrors); n != 6 {
+		t.Errorf("%d vdev error series, want 6 (mirror-0 and raidz1-0, three types each): no stats and bare disks must have none, not 0", n)
 	}
 
 	families, err := prometheus.DefaultGatherer.Gather()
