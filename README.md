@@ -198,7 +198,7 @@ naswarden_container_up{stack="media", container="jellyfin"} == 0
 
 #### 5. Ready-made rules
 
-`deploy/prometheus/naswarden.rules.yml` contains 10 rules covering NasWarden itself (refresh stale for 3 min, a source not updating for 5 min, not scraped), TrueNAS (critical alerts, unresolved warnings, degraded pool, disk over 55 C / 60 C) and replication (task failed, no success for 26 h). Add it to `rule_files` and adjust thresholds to taste. Validate with `promtool check rules deploy/prometheus/naswarden.rules.yml`.
+`deploy/prometheus/naswarden.rules.yml` contains 14 rules covering NasWarden itself (refresh stale for 3 min, a source not updating for 5 min, not scraped), TrueNAS (critical alerts, unresolved warnings, degraded pool, disk over 55 C / 60 C, an enabled service that is stopped) and replication (task failed, no success for 26 h). Add it to `rule_files` and adjust thresholds to taste. Validate with `promtool check rules deploy/prometheus/naswarden.rules.yml`.
 
 #### 6. Grafana dashboard
 

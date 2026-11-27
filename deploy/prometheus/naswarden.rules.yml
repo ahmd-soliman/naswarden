@@ -68,6 +68,18 @@ groups:
         annotations:
           summary: "Disk {{ $labels.disk }} ({{ $labels.pool }}) at {{ $value }}C"
 
+  - name: naswarden-services
+    rules:
+      # The series only exists for services that are enabled or running, so 0
+      # means "set to start on boot but stopped". A service switched off on
+      # purpose (disabled, stopped) has no series and does not fire.
+      - alert: TrueNASServiceDown
+        expr: naswarden_service_up == 0
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "TrueNAS service {{ $labels.service }} is stopped but set to start on boot"
+
   - name: naswarden-zfs
     rules:
       # ZFS counters since the pool was imported; any increase is a disk
