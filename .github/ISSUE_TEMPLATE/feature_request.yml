@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest a new read-only panel, metric or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        NasWarden is **read-only** by design: it will not start, stop, change or delete anything on TrueNAS, Docker or Incus. See the [contributing guide](https://github.com/ahmd-soliman/naswarden/blob/main/CONTRIBUTING.md) for what belongs in the dashboard and in `/metrics`.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: This only needs read access to TrueNAS, Docker or Incus.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem do you want to solve
+      description: What can you not see or alert on today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see
+      description: A panel, a metric, an alert rule. Mention the TrueNAS API call that provides the data, if you know it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: For example node-exporter, cAdvisor or the TrueNAS UI.
+    validations:
+      required: false
+  - type: input
+    id: truenas-version
+    attributes:
+      label: TrueNAS version
+      placeholder: "25.10.0"
+    validations:
+      required: false
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to work on this myself.
+          required: false
