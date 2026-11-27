@@ -36,7 +36,7 @@ func methodServer(t *testing.T, results map[string]string) *Client {
 				case m.Method == "auth.login_with_api_key":
 					_ = conn.WriteJSON(ddpMessage{Msg: "result", ID: m.ID, Result: json.RawMessage(`true`)})
 				case !ok:
-					_ = conn.WriteJSON(ddpMessage{Msg: "result", ID: m.ID, Error: &ddpError{Error: "EFAULT", Reason: "not scripted"}})
+					_ = conn.WriteJSON(ddpMessage{Msg: "result", ID: m.ID, Error: &ddpError{Errname: "EFAULT", Reason: "not scripted"}})
 				default:
 					_ = conn.WriteJSON(ddpMessage{Msg: "result", ID: m.ID, Result: json.RawMessage(res)})
 				}

@@ -334,3 +334,20 @@ func TestUpdateServerExportsVersionInfo(t *testing.T) {
 		t.Errorf("%d info series after an upgrade, want 1 (the old version must go)", n)
 	}
 }
+
+func TestUpdateServicesOnlyServiceNameLabel(t *testing.T) {
+	UpdateServices([]truenas.Service{
+		{Name: "cifs", State: "STOPPED", Enable: true, Problem: true},
+		{Name: "nfs", State: "RUNNING", Enable: true},
+	})
+	if v := gaugeValue(serviceUp.WithLabelValues("cifs")); v != 0 {
+		t.Errorf("stopped cifs = %f, want 0", v)
+	}
+	if v := gaugeValue(serviceUp.WithLabelValues("nfs")); v != 1 {
+		t.Errorf("running nfs = %f, want 1", v)
+	}
+	UpdateServices(nil)
+	if n := seriesCount(t, serviceUp); n != 0 {
+		t.Fatalf("a service that is no longer shown must drop its series, got %d", n)
+	}
+}

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -64,10 +65,37 @@ type ddpMessage struct {
 	Error   *ddpError       `json:"error,omitempty"`
 }
 
+// ddpError is the middleware's error object. On the wire "error" is the
+// numeric errno and "errname" its name ({"error":32,"errname":"ENOMETHOD",
+// "reason":"Method 'x' not found in 'y'"}, seen on TrueNAS 25.10.7). Error is
+// kept raw so that either a number or a name decodes: a field typed string
+// made every error reply fail to decode, which tore the connection down.
 type ddpError struct {
-	Error   string `json:"error"`
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
+	Error   json.RawMessage `json:"error"`
+	Errname string          `json:"errname"`
+	Reason  string          `json:"reason"`
+	Message string          `json:"message"`
+}
+
+// ErrNoMethod matches (errors.Is) a call the middleware rejected because it
+// has no such method, e.g. a TrueNAS release without that API.
+var ErrNoMethod = errors.New("method not found")
+
+type callError struct {
+	msg      string
+	noMethod bool
+}
+
+func (e *callError) Error() string { return e.msg }
+func (e *callError) Is(target error) bool {
+	return target == ErrNoMethod && e.noMethod
+}
+
+func newCallError(method string, e *ddpError) error {
+	return &callError{
+		msg:      fmt.Sprintf("%s: %s", method, e.String()),
+		noMethod: e.Errname == "ENOMETHOD" || strings.Trim(string(e.Error), `"`) == "ENOMETHOD",
+	}
 }
 
 func (e *ddpError) String() string {
@@ -202,7 +230,7 @@ func (c *Client) callOn(ctx context.Context, conn *websocket.Conn, method string
 	select {
 	case resp := <-respCh:
 		if resp.Error != nil {
-			return nil, fmt.Errorf("%s: %s", method, resp.Error.String())
+			return nil, newCallError(method, resp.Error)
 		}
 		return resp.Result, nil
 	case <-ctx.Done():
