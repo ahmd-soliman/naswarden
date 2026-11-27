@@ -50,6 +50,9 @@ type ServerInfo struct {
 	// Whether TrueNAS has an update waiting; absent until the first check
 	// has succeeded (and when TrueNAS cannot reach its update server).
 	Update *UpdateInfo `json:"update,omitempty"`
+	// IANA zone of the NAS (system.info): cron schedules are local to it. Not
+	// sent to the browser.
+	Timezone string `json:"-"`
 }
 
 // Interface is a network interface's current link state and addresses --
@@ -77,6 +80,7 @@ type systemInfoResponse struct {
 	Cores         int64   `json:"cores"` // logical cores (threads)
 	PhysicalCores int64   `json:"physical_cores"`
 	Model         string  `json:"model"` // e.g. "AMD Ryzen 5 5600G with Radeon Graphics"
+	Timezone      string  `json:"timezone"`
 }
 
 // reportingGraph mirrors reporting.netdata_get_data's response shape:
@@ -145,6 +149,7 @@ func GetServerInfo(ctx context.Context, c *Client) (*ServerInfo, error) {
 		CPUModel:      sysInfo.Model,
 		Cores:         sysInfo.Cores,
 		PhysicalCores: sysInfo.PhysicalCores,
+		Timezone:      sysInfo.Timezone,
 	}
 
 	for _, g := range reportGraphs {
