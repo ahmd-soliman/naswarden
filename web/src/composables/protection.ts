@@ -70,7 +70,7 @@ export function groupByKind(tasks: ProtectionTask[]): { kind: Kind; label: strin
 // A long list that is all fine starts folded, so it does not push the tasks
 // that need a look off the screen. Anything else starts open.
 export function startsCollapsed(tasks: ProtectionTask[]): boolean {
-  return tasks.length > 3 && tasks.every((t) => (t.state === 'OK' && !t.overdue) || t.state === 'DISABLED')
+  return tasks.length > 6 && tasks.every((t) => (t.state === 'OK' && !t.overdue) || t.state === 'DISABLED')
 }
 
 export function ago(ts: number, nowSec: number): string {

@@ -70,9 +70,9 @@ describe('groupByKind', () => {
     expect(groupByKind([])).toEqual([])
   })
   it('folds only a long list that is all fine', () => {
-    const ok = [task(), task(), task(), task()]
+    const ok = [task(), task(), task(), task(), task(), task(), task()]
     expect(startsCollapsed(ok)).toBe(true)
-    expect(startsCollapsed(ok.slice(0, 3))).toBe(false)
+    expect(startsCollapsed(ok.slice(0, 6))).toBe(false)
     expect(startsCollapsed([...ok, task({ state: 'FAILED' })])).toBe(false)
     expect(startsCollapsed([...ok, task({ overdue: true })])).toBe(false)
     expect(startsCollapsed([...ok, task({ state: 'RUNNING' })])).toBe(false)
