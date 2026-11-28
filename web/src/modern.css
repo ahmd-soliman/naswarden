@@ -58,14 +58,14 @@ body {
 .server-card .server-card__row.server-card__row {
   display: flex;
   flex-wrap: wrap; /* flex, not grid: a short last row stretches to the full width instead of leaving one tile alone */
-  gap: 0.75rem;
+  gap: 1.1rem 1.5rem;
 }
 .server-card .server-card__stat.server-card__stat {
-  background: rgb(var(--tint-rgb) / 0.035);
-  border: 1px solid rgb(var(--tint-rgb) / 0.05);
-  border-radius: var(--radius-sm);
-  padding: 0.7rem 0.9rem;
-  gap: 0.35rem;
+  background: none; /* no box per item: the card is the box, whitespace does the grouping */
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  gap: 0.3rem;
   min-width: 0;
   flex: 1 1 135px;
 }
@@ -125,6 +125,29 @@ div.bar.bar .bar__fill {
   letter-spacing: 0.05em;
   padding: 0.22rem 0.6rem;
   border-radius: 999px;
+}
+.badge.badge.badge {
+  border: 0; /* the drawers' own tinted badges carry a 1px outline */
+}
+/* drive temperatures in the pool drawer: coloured text like every other temperature */
+.temp-badge.temp-badge.temp-badge {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-weight: 600;
+}
+.vm-card .vm-hw-pill.vm-hw-pill {
+  border: 0;
+  border-radius: 999px;
+  padding-inline: 0.55rem;
+}
+/* an address is data, not a status: plain dim text, no chip */
+.vm-card .vm-card__ip.vm-card__ip,
+.vm-card .vm-card__display.vm-card__display {
+  background: none;
+  padding: 0;
+  color: var(--text-dim);
+  font-size: 1.1em; /* monospace looks smaller than the sans text beside it at the same size */
 }
 .update-pill.update-pill,
 .alert-pill.alert-pill,
