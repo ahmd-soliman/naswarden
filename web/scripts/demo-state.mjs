@@ -109,7 +109,7 @@ function container(now, i, app, service, image, cpu, memMB, { state = 'running',
   }
 }
 
-function vm(now, name, type, os, status, cpu, memGB, memTotalGB, cores, ip, { manager = 'incus', isVM = true } = {}) {
+function vm(now, name, type, os, status, cpu, memGB, memTotalGB, cores, ip, { manager = 'incus', isVM = true, passthrough } = {}) {
   const running = status === 'Running'
   return {
     name,
@@ -134,6 +134,7 @@ function vm(now, name, type, os, status, cpu, memGB, memTotalGB, cores, ip, { ma
     started_at: new Date((now - 9 * 86400) * 1000).toISOString(),
     auto_start: running,
     config: {},
+    ...(passthrough && { passthrough }),
   }
 }
 
@@ -233,7 +234,7 @@ export function demoState(now = Math.floor(Date.now() / 1000)) {
       vm(now, 'pihole', 'container', 'Debian 13', 'Running', 0.4, 0.2, 1, 1, '192.168.1.32', { isVM: false }),
       vm(now, 'k8s-node-0', 'virtual-machine', 'Ubuntu 24.04', 'Running', 4.1, 5.2, 8, 4, '192.168.1.141'),
       vm(now, 'incus-gitlab-runner', 'container', 'Debian 13', 'Running', 3.2, 1.3, 32, 12, '192.168.1.125', { isVM: false }),
-      vm(now, 'windows-11', 'virtual-machine', 'Windows 11', 'Stopped', 0, 0, 16, 8, '', { manager: 'truenas' }),
+      vm(now, 'windows-11', 'virtual-machine', 'Windows 11', 'Stopped', 0, 0, 16, 8, '', { manager: 'truenas', passthrough: ['NVIDIA GeForce RTX 3060'] }),
     ],
     alerts: [
       {
