@@ -147,6 +147,7 @@ div.bar.bar .bar__fill {
   background: none;
   padding: 0;
   color: var(--text-dim);
+  font-size: 1.1em; /* monospace looks smaller than the sans text beside it at the same size */
 }
 .update-pill.update-pill,
 .alert-pill.alert-pill,
